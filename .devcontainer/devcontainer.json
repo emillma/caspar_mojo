@@ -1,0 +1,53 @@
+{
+    // "image": "devcontainer:latest",
+    "image": "casparmojo:latest",
+    "name": "devcontainer",
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "eamodio.gitlens",
+                "github.copilot",
+                "ms-python.python",
+                "ms-python.vscode-pylance",
+                "ms-python.black-formatter",
+                "ms-toolsai.jupyter",
+                "kevinrose.vsc-python-indent",
+                "ms-vscode.cpptools-extension-pack",
+                "nvidia.nsight-vscode-edition",
+                "janisdd.vscode-edit-csv",
+                "svelte.svelte-vscode",
+                "bradlc.vscode-tailwindcss",
+                "visualstudioexptteam.vscodeintellicode",
+                "rioj7.command-variable",
+                "znck.grammarly",
+                "james-yu.latex-workshop",
+                "samuelcolvin.jinja",
+                "charliermarsh.ruff",
+                "nvidia.nsight-vscode-edition",
+                "modular-mojotools.vscode-mojo-nightly"
+            ]
+        }
+    },
+    "runArgs": [
+        // "--runtime=nvidia",
+        "-eNVIDIA_DRIVER_CAPABILITIES=all",
+        "--privileged",
+        "--net=host",
+        "--ipc=host",
+        // "--gpus=all",
+        // "--pid=host"
+        "--add-host=host.docker.internal:host-gateway",
+    ],
+    "mounts": [
+        "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind"
+        // "source=/dev,target=/dev,type=bind",
+        // "source=/home/nvidia/datasets,target=/datasets,type=bind",
+        // "source=/run/jtop.sock,target=/run/jtop.sock,type=bind"
+        // "source=/lib/modules/5.15.122-tegra,target=/lib/modules/5.15.122-tegra,type=bind"
+    ],
+    "forwardPorts": [
+        62201,
+        62202,
+        62203
+    ]
+}
