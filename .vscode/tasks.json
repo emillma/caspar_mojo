@@ -15,6 +15,14 @@
                 "-o",
                 "${workspaceFolder}/build/main"
             ],
+            "presentation": {
+                // "reveal": "silent",
+                "echo": false,
+                // "focus": true,
+                "panel": "shared",
+                "revealProblems": "never",
+                "clear": true
+            },
             "problemMatcher": {
                 "owner": "mojo",
                 "fileLocation": [

@@ -38,7 +38,7 @@
             "env": [],
             "preLaunchTask": "build",
             "cwd": "${workspaceFolder}",
-            "runInTerminal": false
+            // "runInTerminal": true
         },
         {
             "type": "mojo-lldb",
@@ -57,7 +57,7 @@
             "env": [],
             "cwd": "${workspaceFolder}",
             "breakOnLaunch": true,
-            "legacyDebugger": true,
+            // "legacyDebugger": true,
             "initCommands": [
                 "set environment CUDBG_USE_LEGACY_DEBUGGER=1"
             ],

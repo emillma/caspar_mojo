@@ -45,5 +45,9 @@ struct Expr[sys_origin: MutableOrigin](Writable):
         self.sysref = Pointer(to=sys)
         self.id = ExprId(call_id, out_idx)
 
+    fn __str__(self) -> String:
+        return String(self.sysref[].calls.__len__())
+        # return f"Expr({self.sysref}, {self.id})"
+
     fn write_to[T: Writer](self, mut writer: T):
         ("caspar").write_to(writer)
