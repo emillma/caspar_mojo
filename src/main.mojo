@@ -2,7 +2,7 @@
 
 from memory import UnsafePointer
 from utils import Variant
-from caspar.system import System, Expr, Symbol
+from caspar.system import System, Symbol
 
 
 struct Foo:
@@ -17,20 +17,28 @@ struct Foo:
         self.data = other.data
 
     fn __moveinit__(out self, owned other: Foo):
-        print("Foo.__moveinit__")
+        # print("Foo.__moveinit__")
         self.data = other.data
 
 
 fn main():
     # print(b)
 
-    var foo = Foo(1)
-    var list = List[Foo](foo^)
-    # list[0] = foo
-    print(list[0].data)
+    # var a = Foo(1)
+    # var a0 = a^
+    # var a1 = a0^
+    # var a2 = a1^
+    # var c = a2^
+    # print(c.data)
+    # print(c.data)
+    # # var list = List[Foo](foo^)
+    # # list[0] = foo
+    # # print(list[0].data)
+
     var sys = System()
-    var x = sys.call[Symbol]()
-    print(UnsafePointer(to=x.sys[]))
+    var call = sys.call[Symbol](data=String("hello"))
+    var expr = call[0]
+    print(String(expr))
     # print(Int(UnsafePointer(to=x)))
     # fn inner() -> System:
     #     # var pose_a = Pose3(sys, 'pose_a')

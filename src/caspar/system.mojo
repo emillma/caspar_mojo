@@ -1,7 +1,8 @@
 from sys.intrinsics import _type_is_eq
 from .callables import Callable, DataVariant, StoreFloat, Symbol, Add
-from .expr import ExprData, Expr
-from .call import CallData, Call
+from .expr import ExprData, ExprRef
+from .call import CallData, CallRef
+from .owned_list import OwnedList
 
 
 struct SysConfig[*Ts: Callable]:
@@ -23,15 +24,30 @@ struct System:
     var _calls: List[CallData]
     var _exprs: List[ExprData]
 
+    var foo: OwnedList[CallData]
+
     fn __init__(out self):
         self._calls = List[CallData]()
         self._exprs = List[ExprData]()
+        self.foo = OwnedList[CallData]()
+
+    fn __getitem__[
+        origin: MutableOrigin
+    ](ref [origin]self, expr: ExprRef[origin]) -> ref [self._exprs] ExprData:
+        """Returns the expression data."""
+        return self._exprs[expr.id]
+
+    fn __getitem__[
+        origin: MutableOrigin
+    ](ref [origin]self, call: CallRef[origin]) -> ref [self._calls] CallData:
+        """Returns the call data."""
+        return self._calls[call.id]
 
     fn call[
         FuncT: Callable
     ](
-        mut self, *args: Expr[__origin_of(self)], data: DataVariant = None
-    ) -> Call[__origin_of(self)]:
+        mut self, *args: ExprRef[__origin_of(self)], data: DataVariant = None
+    ) -> CallRef[__origin_of(self)]:
         """Creates a call and returns its ID."""
         debug_assert(len(args) == FuncT.n_args)
         debug_assert(data.isa[FuncT.DataT]())
@@ -43,7 +59,7 @@ struct System:
                 n_outs=FuncT.n_outs,
                 data=data,
                 func_id=self.sysConfig.get_callable_id[FuncT](),
-                ger_repr=FuncT.get_repr,
+                get_repr=FuncT.get_repr,
             )
         )
 
@@ -60,7 +76,10 @@ struct System:
                 )
             )
             self._calls[call_id].out_ids.append(len(self._exprs) - 1)
-        return Call(Pointer(to=self), call_id)
+        return CallRef(Pointer(to=self), call_id)
+
+    fn __del__(owned self):
+        self.foo.destroy()
 
     # fn symbol(mut self, name: String) -> ExprRef[__origin_of(self)]:
     #     """Creates a symbol and returns its ID."""
