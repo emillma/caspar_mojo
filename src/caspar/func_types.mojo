@@ -4,6 +4,7 @@ from os import abort
 from utils import Variant
 from sys import alignof, sizeof
 from .sys_components import CallMem
+from builtin.range import _ZeroStartingRange
 
 
 trait Callable(CollectionElement):
@@ -21,9 +22,8 @@ struct StoreFloat(Callable):
 @value
 struct Symbol(Callable):
     alias n_args = 0
-
-    var name: String
     alias n_outs = 1
+    var name: String
 
 
 @register_passable("trivial")
@@ -42,6 +42,16 @@ alias Func = FuncVariant[StoreFloat, Symbol, Add]
 struct FuncVariant[*Ts: Callable]:
     var _type_id: Int
     var _data: InlineArray[Byte, Self.largest_size()]
+
+    fn n_args(self) -> Int:
+        @parameter
+        for i in Self.trange():
+            if self._type_id == i:
+                return Self.Ts[i].n_args
+
+    @staticmethod
+    fn trange() -> _ZeroStartingRange:
+        return range(len(VariadicList(Self.Ts)))
 
     @staticmethod
     fn supports[T: Callable]() -> Bool:
