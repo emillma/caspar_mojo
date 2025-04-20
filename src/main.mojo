@@ -1,88 +1,37 @@
 # from compile.compile import compile_info
 
-from caspar.sys import System, ExprRef
 from memory import UnsafePointer
 from utils import Variant
+from caspar.system import System, Expr, Symbol
 
 
-trait Callable:
-    alias n_outs: Int
-    alias n_args: Int
+struct Foo:
+    var data: Int
 
-    @staticmethod
-    fn get_repr(args: List[String], data: DataT) -> String:
-        ...
+    fn __init__(out self, data: Int):
+        print("Foo.__init__")
+        self.data = data
 
+    fn __copyinit__(out self, other: Foo):
+        print("Foo.__copyinit__")
+        self.data = other.data
 
-# struct StoreFloat(Callable):
-#     alias n_args = 0
-#     alias n_outs = 1
-#     var data: Float64
-
-#     @staticmethod
-#     fn get_repr(self: Call, args: List[String]) -> String:
-#         return args[0] + " + " + args[1]
-
-
-struct Symbol(Callable):
-    alias n_args = 0
-    alias n_outs = 1
-    var name: String
-
-    @staticmethod
-    fn get_repr(args: List[String], data: DataT) -> String:
-        return data[String]
-
-
-struct Add(Callable):
-    alias n_args = 2
-    alias n_outs = 1
-
-    @staticmethod
-    fn get_repr(args: List[String], data: DataT) -> String:
-        return args[0] + " + " + args[1]
-
-
-alias DataT = Variant[Int, String]
-
-
-@value
-struct Call:
-    var args: List[String]
-    var data: DataT
-    var get_repr: fn (List[String], DataT) -> String
-
-    @staticmethod
-    fn to[
-        funcT: Callable
-    ](
-        out self: Self,
-        owned args: List[String],
-        owned data: DataT = DataT(unsafe_uninitialized=()),
-    ):
-        debug_assert(
-            funcT.n_args == len(args),
-            "Function {} expects {} arguments, but got {}",
-        )
-        self = Self(args^, data, funcT.get_repr)
-
-    fn __str__(self) -> String:
-        return self.get_repr(self.args, self.data)
+    fn __moveinit__(out self, owned other: Foo):
+        print("Foo.__moveinit__")
+        self.data = other.data
 
 
 fn main():
-    print("Hello, Mojo!")
-
-    fn foo() -> String:
-        var a = Call.to[Add](List[String]("a", "b"))
-        return String(a)
-
-    alias foo_ = foo()
-    print(foo_)
     # print(b)
+
+    var foo = Foo(1)
+    var list = List[Foo](foo^)
+    # list[0] = foo
+    print(list[0].data)
     var sys = System()
-    var x = sys.symbol("x")
-    print(Int(UnsafePointer(to=x)))
+    var x = sys.call[Symbol]()
+    print(UnsafePointer(to=x.sys[]))
+    # print(Int(UnsafePointer(to=x)))
     # fn inner() -> System:
     #     # var pose_a = Pose3(sys, 'pose_a')
     #     # var pose_b = Pose3(sys, 'pose_b')

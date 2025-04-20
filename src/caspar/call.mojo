@@ -1,67 +1,34 @@
-from utils.variant import Variant  # Import Variant from the appropriate module
-from .expr import ExprRef, ExprMem, Expr, ExprId
-from memory import UnsafePointer
-from .system import SystemBase
-from .func_types import FuncSet, FuncT
+from .callables import DataVariant
+from .system import System
 
 
 @value
-struct CallMem[funcSet: FuncSet](CollectionElement):
-    alias dataT = Variant[String, Int, NoneType]
+struct CallData:
+    var arg_ids: List[Int]
+    var out_ids: List[Int]
+    var data: DataVariant
 
-    alias ExprMem = ExprMem[funcSet]
-    # alias Expr = Expr[funcSet, _]
+    ### Func destcription
+    var funcid: Int
+    var ger_repr: fn (List[String], DataVariant) -> String
 
-    var func_id: Int
-    var args: List[ExprId]
-    var outs: List[Self.ExprMem]
-    var data: Self.dataT
-
-    @staticmethod
-    fn to[
-        funcT: FuncT
-    ](out self: Self, owned args: List[Self.ExprRef], data: Self.dataT = None,):
-        alias n_args = funcSet.get_n_args[funcT]()
-        alias n_outs = funcSet.get_n_outs[funcT]()
-        debug_assert(len(args) == n_args, "Invalid number of arguments")
-
-        self = Self(
-            func_id=funcSet.get_id[funcT](),
-            args=args,
-            outs=List[Self.ExprMem](capacity=n_outs),
-            data=data,
-        )
-
-        @parameter
-        for i in range(n_outs):
-            self.outs.append(Self.ExprMem(self, i))
+    fn __init__(
+        out self,
+        n_args: Int,
+        n_outs: Int,
+        data: DataVariant,
+        func_id: Int,
+        ger_repr: fn (List[String], DataVariant) -> String,
+    ):
+        self.arg_ids = List[Int](capacity=n_args)
+        self.out_ids = List[Int](capacity=n_outs)
+        self.data = data
+        self.funcid = func_id
+        self.ger_repr = ger_repr
 
 
-@register_passable
-struct CallRef[funcSet: FuncSet]:
-    """Represents edge in graph. Should be ref counted."""
-
-    alias CallMem = CallMem[funcSet]
-
-    var ptr: UnsafePointer[Self.CallMem, mut=False]
-
-    fn __init__(out self, read call: Self.CallMem):
-        self.ptr = UnsafePointer(to=call)
-
-    fn __copyinit__(out self, other: Self):
-        self.ptr = other.ptr
-
-
+@value
 @register_passable("trivial")
-struct Call[funcSet: FuncSet, sys: Origin, origin: Origin[False]](
-    CollectionElement
-):
-    var ptr: Pointer[CallMem[funcSet], origin]
-
-    fn __init__(out self, ref [origin]call: CallMem[funcSet]):
-        self.ptr = Pointer(to=call)
-
-    # fn __getitem__(
-    #     self, i: Int
-    # ) -> Expr[funcSet, sys, __origin_of(self.ptr[i].outs[0])]:
-    #     return Expr[funcSet, sys](self.ptr[i].outs[0])
+struct Call[origin: MutableOrigin]:
+    var sys: Pointer[System, origin]
+    var id: Int
