@@ -24,12 +24,12 @@ struct System:
     var _calls: List[CallData]
     var _exprs: List[ExprData]
 
-    var foo: OwnedList[CallData]
+    var foo: OwnedList[CallData, 0]
 
     fn __init__(out self):
         self._calls = List[CallData]()
         self._exprs = List[ExprData]()
-        self.foo = OwnedList[CallData]()
+        # self.foo = OwnedList[CallData]()
 
     fn __getitem__[
         origin: MutableOrigin
@@ -45,9 +45,9 @@ struct System:
 
     fn call[
         FuncT: Callable
-    ](
-        mut self, *args: ExprRef[__origin_of(self)], data: DataVariant = None
-    ) -> CallRef[__origin_of(self)]:
+    ](mut self, *args: ExprRef[__origin_of(self)], data: DataVariant = None) -> CallRef[
+        __origin_of(self)
+    ]:
         """Creates a call and returns its ID."""
         debug_assert(len(args) == FuncT.n_args)
         debug_assert(data.isa[FuncT.DataT]())
