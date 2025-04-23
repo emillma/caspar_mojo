@@ -2,6 +2,7 @@ from memory import UnsafePointer
 from sys import sizeof
 from sys.intrinsics import _type_is_eq
 from os import abort
+from .expr import Expr
 
 
 trait Callable(CollectionElementNew):

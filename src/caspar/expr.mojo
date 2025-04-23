@@ -87,19 +87,13 @@ struct Call:
         self._data = existing._data
 
     fn __moveinit__(out self, owned existing: Self):
-        self._data = existing._data
+        self._data = existing._data^
 
     fn __getitem__(self) -> ref [self._data] CallData:
         return self._data[]
 
     fn __getitem__(self, idx: Int) -> Expr:
         return Expr(self, idx)
-
-    fn __str__(self) -> String:
-        var arg_strings = List[String](capacity=self[].func.n_args())
-        for i in range(self[].func.n_args()):
-            arg_strings.append(String(self[].args[i]))
-        return self[].func.repr(arg_strings)
 
 
 @value
@@ -108,12 +102,16 @@ struct Expr(CollectionElement):
     var out_idx: Int
 
     fn __str__(self) -> String:
-        if self.call[].func.n_outs() == 1:
-            return String(self.call)
-        return String(self.call) + "[" + String(self.out_idx) + "]"
+        var arg_strings = List[String](capacity=self.call[].func.n_args())
+        for arg in self.args():
+            arg_strings.append(String(arg[]))
+        return self.call[].func.repr(arg_strings)
 
     fn __add__(self, other: Expr) -> Expr:
         return Call(Add(), List(self, other))[0]
 
     fn args(self) -> ref [self.call[].args] List[Expr]:
         return self.call[].args
+
+    fn args(self, idx: Int) -> ref [self.call[].args] Expr:
+        return self.call[].args[idx]
