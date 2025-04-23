@@ -12,6 +12,9 @@ struct Symbol(Callable):
     fn repr(self, args: List[String]) -> String:
         return self._data
 
+    fn print[*Ts: Callable](self, expr: List[Expr[*Ts]]) -> String:
+        return "symbol"
+
 
 @value
 struct Add(Callable):
@@ -21,5 +24,5 @@ struct Add(Callable):
     fn repr(self, args: List[String]) -> String:
         return args[0] + " + " + args[1]
 
-
-alias CallableVariantDefault = CallableVariant[Symbol, Add]
+    fn print[*Ts: Callable](self, expr: List[Expr[*Ts]]) -> String:
+        return "add"

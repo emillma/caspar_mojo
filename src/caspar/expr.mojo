@@ -1,6 +1,6 @@
 from memory import UnsafePointer
-from .callable import Callable
-from caspar.functions import CallableVariantDefault, Symbol, Add
+from .callable import Callable, CallableVariant
+from caspar.functions import Symbol, Add
 
 
 struct RcPointerInner[T: Movable]:
@@ -47,18 +47,20 @@ struct RcPointer[T: Movable]:
 
 
 # @value
-struct CallData(Movable & Copyable):
+struct CallData[*Ts: Callable](Movable & Copyable):
+    alias Expr = Expr[*Ts]
+
     alias static_arg_size = 4
     alias static_out_size = 4
 
-    var func: CallableVariantDefault
-    var args: List[Expr]
+    var func: CallableVariant[*Ts]
+    var args: List[Self.Expr]
 
     @staticmethod
     fn __init__(
         out self: Self,
-        owned func: CallableVariantDefault,
-        owned args: List[Expr],
+        owned func: CallableVariant[*Self.Ts],
+        owned args: List[Self.Expr],
     ):
         debug_assert(len(args) == func.n_args(), "Invalid number of arguments")
         self.args = args^
@@ -73,15 +75,19 @@ struct CallData(Movable & Copyable):
         self.func = existing.func^
 
 
-struct Call:
-    var _data: RcPointer[CallData]
+struct Call[*Ts: Callable]:
+    alias CallVariant = CallableVariant[*Ts]
+    alias CallData = CallData[*Ts]
+    alias Expr = Expr[*Ts]
+
+    var _data: RcPointer[Self.CallData]
 
     fn __init__(
         out self,
-        owned func: CallableVariantDefault,
-        owned args: List[Expr] = List[Expr](),
+        owned func: Self.CallVariant,
+        owned args: List[Self.Expr] = List[Self.Expr](),
     ):
-        self._data = RcPointer(CallData(func^, args^))
+        self._data = RcPointer(Self.CallData(func^, args^))
 
     fn __copyinit__(out self, existing: Self):
         self._data = existing._data
@@ -89,16 +95,18 @@ struct Call:
     fn __moveinit__(out self, owned existing: Self):
         self._data = existing._data^
 
-    fn __getitem__(self) -> ref [self._data] CallData:
+    fn __getitem__(self) -> ref [self._data] Self.CallData:
         return self._data[]
 
-    fn __getitem__(self, idx: Int) -> Expr:
-        return Expr(self, idx)
+    fn __getitem__(self, idx: Int) -> Self.Expr:
+        return Self.Expr(self, idx)
 
 
 @value
-struct Expr(CollectionElement):
-    var call: Call
+struct Expr[*Ts: Callable](CollectionElement):
+    alias Call = Call[*Ts]
+
+    var call: Self.Call
     var out_idx: Int
 
     fn __str__(self) -> String:
@@ -107,11 +115,22 @@ struct Expr(CollectionElement):
             arg_strings.append(String(arg[]))
         return self.call[].func.repr(arg_strings)
 
-    fn __add__(self, other: Expr) -> Expr:
-        return Call(Add(), List(self, other))[0]
+    fn __add__(self, other: Self) -> Self:
+        return Self.Call(Add(), List(self, other))[0]
 
-    fn args(self) -> ref [self.call[].args] List[Expr]:
+    fn args(self) -> ref [self.call[].args] List[Self]:
         return self.call[].args
 
-    fn args(self, idx: Int) -> ref [self.call[].args] Expr:
+    fn args(self, idx: Int) -> ref [self.call[].args] Self:
         return self.call[].args[idx]
+
+    fn __copyinit__(out self, existing: Self):
+        self.call = existing.call
+        self.out_idx = existing.out_idx
+
+    fn __moveinit__(out self, owned existing: Self):
+        self.call = existing.call^
+        self.out_idx = existing.out_idx
+
+    fn print(self) -> String:
+        return self.call[].func.print(List[Self]())

@@ -12,11 +12,15 @@ trait Callable(CollectionElementNew):
     fn repr(self, args: List[String]) -> String:
         ...
 
+    fn print[*Ts: Callable](self, args: List[Expr[*Ts]]) -> String:
+        ...
+
 
 @value
 struct Lookup[*Ts: Callable]:
     alias instanceT = CallableVariant[*Ts]
     var repr: fn (Self.instanceT, List[String]) -> String
+    var print: fn (Self.instanceT, List[Expr[*Self.Ts]]) -> String
     var n_args: Int
     var n_outs: Int
 
@@ -27,7 +31,16 @@ struct Lookup[*Ts: Callable]:
             debug_assert(len(args) == T.n_args, "Wrong number of args")
             return T.repr(instance[T], args)
 
-        return Self(repr=repr, n_args=T.n_args, n_outs=T.n_outs)
+        fn print(instance: Self.instanceT, expr: List[Expr[*Self.Ts]]) -> String:
+            debug_assert(instance.isa[T](), "get: wrong variant type")
+            return instance[T].print[*Self.Ts](expr)
+
+        return Self(
+            repr=repr,
+            print=print,
+            n_args=T.n_args,
+            n_outs=T.n_outs,
+        )
 
     @staticmethod
     fn get_table() -> InlineArray[Self, len(VariadicList(Ts))]:
@@ -47,6 +60,18 @@ struct CallableVariant[*Ts: Callable]:
     ]
     var _impl: Self._mlir_type
 
+    fn repr(self, args: List[String] = List[String]()) -> String:
+        return Self.table[self._get_type_index()].repr(self, args)
+
+    fn print(self, args: List[Expr[*Self.Ts]]) -> String:
+        return Self.table[self._get_type_index()].print(self, args)
+
+    fn n_args(self) -> Int:
+        return Self.table[self._get_type_index()].n_args
+
+    fn n_outs(self) -> Int:
+        return Self.table[self._get_type_index()].n_outs
+
     @implicit
     fn __init__[T: Callable](out self, owned value: T):
         __mlir_op.`lit.ownership.mark_initialized`(__get_mvalue_as_litref(self))
@@ -55,15 +80,6 @@ struct CallableVariant[*Ts: Callable]:
 
     fn __copyinit__(out self, other: Self):
         self._impl = other._impl
-
-    fn repr(self, args: List[String] = List[String]()) -> String:
-        return Self.table[self._get_type_index()].repr(self, args)
-
-    fn n_args(self) -> Int:
-        return Self.table[self._get_type_index()].n_args
-
-    fn n_outs(self) -> Int:
-        return Self.table[self._get_type_index()].n_outs
 
     fn _get_ptr[T: Callable](self) -> UnsafePointer[T]:
         alias idx = Self._type_index_of[T]()

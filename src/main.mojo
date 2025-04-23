@@ -5,8 +5,8 @@ from caspar.expr import Expr, Call
 
 
 fn main():
-    var x = Call(Symbol("x"))[0]
-    var y = Call(Symbol("y"))[0]
-
+    var x = Call[Add, Symbol](Symbol("x"))[0]
+    var y = Call[Add, Symbol](Symbol("y"))[0]
+    print(y.print())
     print(String((y)))
     print(String((x + y)))
