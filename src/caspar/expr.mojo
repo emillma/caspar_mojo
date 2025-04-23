@@ -1,37 +1,119 @@
-from .system import System
-from .call import CallRef, CallData
+from memory import UnsafePointer
+from .callable import Callable
+from caspar.functions import CallableVariantDefault, Symbol, Add
 
 
-@value
-struct ExprData:
-    var call_id: Int
-    var out_idx: Int
-    var use_ids: List[Int]
+struct RcPointerInner[T: Movable]:
+    var refcount: Int
+    var payload: T
+
+    @implicit
+    fn __init__(out self, owned value: T):
+        self.refcount = 1
+        self.payload = value^
+
+    fn add_ref(mut self):
+        self.refcount += 1
+
+    fn drop_ref(mut self) -> Bool:
+        self.refcount -= 1
+        return self.refcount == 0
 
 
-@value
-@register_passable("trivial")
-struct ExprRef[origin: MutableOrigin]:
-    var sys: Pointer[System, origin]
-    var id: Int
+struct RcPointer[T: Movable]:
+    alias InnerT = RcPointerInner[T]
+    var _inner: UnsafePointer[Self.InnerT]
 
-    fn add_use(mut self, use_id: Int):
-        """Adds a use ID to the expression."""
-        self.sys[]._exprs[self.id].use_ids.append(use_id)
+    @implicit
+    fn __init__(out self, owned value: T):
+        self._inner = UnsafePointer[Self.InnerT].alloc(1)
+        __get_address_as_uninit_lvalue(self._inner.address) = Self.InnerT(value^)
 
-    fn calldata(self) -> ref [origin] CallData:
-        """Returns the call reference."""
-        return self.sys[]._calls[self.sys[][self].call_id]
+    fn __copyinit__(out self, existing: Self):
+        existing._inner[].add_ref()
+        self._inner = existing._inner
 
-    fn call(self) -> CallRef[origin]:
-        """Returns the call reference."""
-        return CallRef(self.sys, self.sys[][self].call_id)
+    fn __moveinit__(out self, owned existing: Self):
+        self._inner = existing._inner
+
+    @no_inline
+    fn __del__(owned self):
+        if self._inner[].drop_ref():
+            self._inner.destroy_pointee()
+            self._inner.free()
+
+    fn __getitem__(self) -> ref [self] T:
+        return self._inner[].payload
+
+
+# @value
+struct CallData(Movable & Copyable):
+    alias static_arg_size = 4
+    alias static_out_size = 4
+
+    var func: CallableVariantDefault
+    var args: List[Expr]
+
+    @staticmethod
+    fn __init__(
+        out self: Self,
+        owned func: CallableVariantDefault,
+        owned args: List[Expr],
+    ):
+        debug_assert(len(args) == func.n_args(), "Invalid number of arguments")
+        self.args = args^
+        self.func = func^
+
+    fn __copyinit__(out self, existing: Self):
+        self.args = existing.args
+        self.func = existing.func
+
+    fn __moveinit__(out self, owned existing: Self):
+        self.args = existing.args^
+        self.func = existing.func^
+
+
+struct Call:
+    var _data: RcPointer[CallData]
+
+    fn __init__(
+        out self,
+        owned func: CallableVariantDefault,
+        owned args: List[Expr] = List[Expr](),
+    ):
+        self._data = RcPointer(CallData(func^, args^))
+
+    fn __copyinit__(out self, existing: Self):
+        self._data = existing._data
+
+    fn __moveinit__(out self, owned existing: Self):
+        self._data = existing._data
+
+    fn __getitem__(self) -> ref [self._data] CallData:
+        return self._data[]
+
+    fn __getitem__(self, idx: Int) -> Expr:
+        return Expr(self, idx)
 
     fn __str__(self) -> String:
-        """Writes the expression to the writer."""
-        # var foo = len(self.callmem().arg_ids)
-        # print(foo)
-        return self.sys[][self.call()].get_repr(
-            List[String]("hello", "world"),
-            self.sys[][self.call()].data,
-        )
+        var arg_strings = List[String](capacity=self[].func.n_args())
+        for i in range(self[].func.n_args()):
+            arg_strings.append(String(self[].args[i]))
+        return self[].func.repr(arg_strings)
+
+
+@value
+struct Expr(CollectionElement):
+    var call: Call
+    var out_idx: Int
+
+    fn __str__(self) -> String:
+        if self.call[].func.n_outs() == 1:
+            return String(self.call)
+        return String(self.call) + "[" + String(self.out_idx) + "]"
+
+    fn __add__(self, other: Expr) -> Expr:
+        return Call(Add(), List(self, other))[0]
+
+    fn args(self) -> ref [self.call[].args] List[Expr]:
+        return self.call[].args

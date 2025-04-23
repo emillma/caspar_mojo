@@ -16,6 +16,8 @@ trait Callable(CollectionElementNew):
 struct Lookup[*Ts: Callable]:
     alias instanceT = CallableVariant[*Ts]
     var repr: fn (Self.instanceT, List[String]) -> String
+    var n_args: Int
+    var n_outs: Int
 
     @staticmethod
     fn of[T: Callable]() -> Self:
@@ -24,7 +26,7 @@ struct Lookup[*Ts: Callable]:
             debug_assert(len(args) == T.n_args, "Wrong number of args")
             return T.repr(instance[T], args)
 
-        return Self(repr=repr)
+        return Self(repr=repr, n_args=T.n_args, n_outs=T.n_outs)
 
     @staticmethod
     fn get_table() -> InlineArray[Self, len(VariadicList(Ts))]:
@@ -42,7 +44,6 @@ struct CallableVariant[*Ts: Callable]:
     alias _mlir_type = __mlir_type[
         `!kgen.variant<[rebind(:`, __type_of(Ts), ` `, Ts, `)]>`
     ]
-
     var _impl: Self._mlir_type
 
     @implicit
@@ -56,6 +57,12 @@ struct CallableVariant[*Ts: Callable]:
 
     fn repr(self, args: List[String] = List[String]()) -> String:
         return Self.table[self._get_type_index()].repr(self, args)
+
+    fn n_args(self) -> Int:
+        return Self.table[self._get_type_index()].n_args
+
+    fn n_outs(self) -> Int:
+        return Self.table[self._get_type_index()].n_outs
 
     fn _get_ptr[T: Callable](self) -> UnsafePointer[T]:
         alias idx = Self._type_index_of[T]()
