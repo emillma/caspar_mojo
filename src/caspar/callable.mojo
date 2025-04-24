@@ -2,7 +2,8 @@ from memory import UnsafePointer
 from sys import sizeof
 from sys.intrinsics import _type_is_eq
 from os import abort
-from .expr import Expr
+from .expr import Expr, Call
+from .sysconfig import SysConfig
 
 
 trait Callable(CollectionElementNew):
@@ -12,28 +13,27 @@ trait Callable(CollectionElementNew):
     fn repr(self, args: List[String]) -> String:
         ...
 
-    fn print[*Ts: Callable](self, args: List[Expr[*Ts]]) -> String:
+    fn print[sys: SysConfig](self, call: Call[sys]) -> String:
         ...
 
 
 @value
-struct Lookup[*Ts: Callable]:
-    alias instanceT = CallableVariant[*Ts]
-    var repr: fn (Self.instanceT, List[String]) -> String
-    var print: fn (Self.instanceT, List[Expr[*Self.Ts]]) -> String
+struct Lookup[sys: SysConfig]:
+    var repr: fn (CallableVariant[sys], List[String]) -> String
+    var print: fn (CallableVariant[sys], Call[sys]) -> String
     var n_args: Int
     var n_outs: Int
 
     @staticmethod
     fn of[T: Callable]() -> Self:
-        fn repr(instance: Self.instanceT, args: List[String]) -> String:
+        fn repr(instance: CallableVariant[sys], args: List[String]) -> String:
             debug_assert(instance.isa[T](), "get: wrong variant type")
             debug_assert(len(args) == T.n_args, "Wrong number of args")
             return T.repr(instance[T], args)
 
-        fn print(instance: Self.instanceT, expr: List[Expr[*Self.Ts]]) -> String:
+        fn print(instance: CallableVariant[sys], call: Call[sys]) -> String:
             debug_assert(instance.isa[T](), "get: wrong variant type")
-            return instance[T].print[*Self.Ts](expr)
+            return instance[T].print(call)
 
         return Self(
             repr=repr,
@@ -43,28 +43,28 @@ struct Lookup[*Ts: Callable]:
         )
 
     @staticmethod
-    fn get_table() -> InlineArray[Self, len(VariadicList(Ts))]:
-        var out = InlineArray[Self, len(VariadicList(Ts))](uninitialized=True)
+    fn get_table() -> InlineArray[Self, len(sys.FuncList)]:
+        var out = InlineArray[Self, len(sys.FuncList)](uninitialized=True)
 
         @parameter
-        for i in range(len(VariadicList(Ts))):
-            out[i] = Self.of[Ts[i]]()
+        for i in range(len(sys.FuncList)):
+            out[i] = Self.of[sys.FuncTs[i]]()
         return out
 
 
 @value
-struct CallableVariant[*Ts: Callable]:
-    alias table = Lookup[*Self.Ts].get_table()
+struct CallableVariant[sys: SysConfig]:
+    alias table = Lookup[sys].get_table()
     alias _mlir_type = __mlir_type[
-        `!kgen.variant<[rebind(:`, __type_of(Ts), ` `, Ts, `)]>`
+        `!kgen.variant<[rebind(:`, __type_of(sys.FuncTs), ` `, sys.FuncTs, `)]>`
     ]
     var _impl: Self._mlir_type
 
     fn repr(self, args: List[String] = List[String]()) -> String:
         return Self.table[self._get_type_index()].repr(self, args)
 
-    fn print(self, args: List[Expr[*Self.Ts]]) -> String:
-        return Self.table[self._get_type_index()].print(self, args)
+    fn print(self, call: Call[Self.sys]) -> String:
+        return Self.table[self._get_type_index()].print(self, call)
 
     fn n_args(self) -> Int:
         return Self.table[self._get_type_index()].n_args
@@ -97,10 +97,10 @@ struct CallableVariant[*Ts: Callable]:
     @staticmethod
     fn _type_index_of[T: Callable]() -> Int:
         @parameter
-        for i in range(len(VariadicList(Self.Ts))):
+        for i in range(len(VariadicList(sys.FuncTs))):
 
             @parameter
-            if _type_is_eq[Ts[i], T]():
+            if _type_is_eq[sys.FuncTs[i], T]():
                 return i
         abort("Not initialized")
         return -1

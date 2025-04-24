@@ -1,5 +1,6 @@
 from .callable import Callable, CallableVariant
-from .expr import Expr
+from .expr import Expr, Call
+from .sysconfig import SysConfig
 
 
 @value
@@ -12,8 +13,8 @@ struct Symbol(Callable):
     fn repr(self, args: List[String]) -> String:
         return self._data
 
-    fn print[*Ts: Callable](self, expr: List[Expr[*Ts]]) -> String:
-        return "symbol"
+    fn print[sys: SysConfig](self, call: Call[sys]) -> String:
+        return self._data
 
 
 @value
@@ -24,5 +25,5 @@ struct Add(Callable):
     fn repr(self, args: List[String]) -> String:
         return args[0] + " + " + args[1]
 
-    fn print[*Ts: Callable](self, expr: List[Expr[*Ts]]) -> String:
-        return "add"
+    fn print[sys: SysConfig](self, call: Call[sys]) -> String:
+        return String(call[].args[0]) + "hello"
