@@ -7,70 +7,43 @@ from .sysconfig import SysConfig
 
 
 trait Callable(CollectionElementNew):
-    alias n_outs: Int
-    alias n_args: Int
-
-    fn repr(self, args: List[String]) -> String:
+    fn n_args(self) -> Int:
         ...
 
-    fn print[sys: SysConfig](self, call: Call[sys]) -> String:
+    fn n_outs(self) -> Int:
         ...
 
-
-@value
-struct Lookup[sys: SysConfig]:
-    var repr: fn (CallableVariant[sys], List[String]) -> String
-    var print: fn (CallableVariant[sys], Call[sys]) -> String
-    var n_args: Int
-    var n_outs: Int
-
-    @staticmethod
-    fn of[T: Callable]() -> Self:
-        fn repr(instance: CallableVariant[sys], args: List[String]) -> String:
-            debug_assert(instance.isa[T](), "get: wrong variant type")
-            debug_assert(len(args) == T.n_args, "Wrong number of args")
-            return T.repr(instance[T], args)
-
-        fn print(instance: CallableVariant[sys], call: Call[sys]) -> String:
-            debug_assert(instance.isa[T](), "get: wrong variant type")
-            return instance[T].print(call)
-
-        return Self(
-            repr=repr,
-            print=print,
-            n_args=T.n_args,
-            n_outs=T.n_outs,
-        )
-
-    @staticmethod
-    fn get_table() -> InlineArray[Self, len(sys.FuncList)]:
-        var out = InlineArray[Self, len(sys.FuncList)](uninitialized=True)
-
-        @parameter
-        for i in range(len(sys.FuncList)):
-            out[i] = Self.of[sys.FuncTs[i]]()
-        return out
+    fn write_call[sys: SysConfig, W: Writer](self, call: Call[sys], mut writer: W):
+        ...
 
 
 @value
 struct CallableVariant[sys: SysConfig]:
-    alias table = Lookup[sys].get_table()
     alias _mlir_type = __mlir_type[
         `!kgen.variant<[rebind(:`, __type_of(sys.FuncTs), ` `, sys.FuncTs, `)]>`
     ]
     var _impl: Self._mlir_type
 
-    fn repr(self, args: List[String] = List[String]()) -> String:
-        return Self.table[self._get_type_index()].repr(self, args)
-
-    fn print(self, call: Call[Self.sys]) -> String:
-        return Self.table[self._get_type_index()].print(self, call)
+    fn write_call[W: Writer](self, call: Call[sys], mut writer: W):
+        @parameter
+        for i in range(len(sys.FuncList)):
+            if self.isa[sys.FuncTs[i]]():
+                return self.unsafe_get[sys.FuncTs[i]]().write_call(call, writer)
 
     fn n_args(self) -> Int:
-        return Self.table[self._get_type_index()].n_args
+        @parameter
+        for i in range(len(sys.FuncList)):
+            alias T = sys.FuncTs[i]
+            if self.isa[sys.FuncTs[i]]():
+                return self.unsafe_get[T]().n_args()
+        return -1
 
     fn n_outs(self) -> Int:
-        return Self.table[self._get_type_index()].n_outs
+        @parameter
+        for i in range(len(sys.FuncList)):
+            if self.isa[sys.FuncTs[i]]():
+                return self.unsafe_get[sys.FuncTs[i]]().n_outs()
+        return -1
 
     @implicit
     fn __init__[T: Callable](out self, owned value: T):

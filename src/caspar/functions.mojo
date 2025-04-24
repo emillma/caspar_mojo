@@ -5,25 +5,27 @@ from .sysconfig import SysConfig
 
 @value
 struct Symbol(Callable):
-    alias n_args = 0
-    alias n_outs = 1
+    var data: String
 
-    var _data: String
+    fn n_args(self) -> Int:
+        return 0
 
-    fn repr(self, args: List[String]) -> String:
-        return self._data
+    fn n_outs(self) -> Int:
+        return 1
 
-    fn print[sys: SysConfig](self, call: Call[sys]) -> String:
-        return self._data
+    fn write_call[sys: SysConfig, W: Writer](self, call: Call[sys], mut writer: W):
+        writer.write(self.data)
 
 
 @value
 struct Add(Callable):
-    alias n_args = 2
-    alias n_outs = 1
+    fn n_args(self) -> Int:
+        return 2
 
-    fn repr(self, args: List[String]) -> String:
-        return args[0] + " + " + args[1]
+    fn n_outs(self) -> Int:
+        return 1
 
-    fn print[sys: SysConfig](self, call: Call[sys]) -> String:
-        return String(call[].args[0]) + "hello"
+    fn write_call[sys: SysConfig, W: Writer](self, call: Call[sys], mut writer: W):
+        call.args(0).write_to(writer)
+        writer.write(" + ")
+        call.args(1).write_to(writer)

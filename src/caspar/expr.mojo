@@ -2,6 +2,7 @@ from memory import UnsafePointer
 from .callable import Callable, CallableVariant
 from caspar.functions import Symbol, Add
 from .sysconfig import SysConfig
+from sys.intrinsics import _type_is_eq
 
 
 struct RcPointerInner[T: Movable]:
@@ -96,6 +97,15 @@ struct Call[sys: SysConfig]:
     fn __getitem__(self, idx: Int) -> Expr[sys]:
         return Expr[sys](self, idx)
 
+    fn write_to[W: Writer](self, mut writer: W):
+        self[].func.write_call(self, writer)
+
+    fn args(self) -> ref [self._data[].args] List[Expr[sys]]:
+        return self._data[].args
+
+    fn args(self, idx: Int) -> ref [self._data[].args] Expr[sys]:
+        return self._data[].args[idx]
+
 
 @value
 struct Expr[sys: SysConfig](CollectionElement, Writable):
@@ -103,16 +113,18 @@ struct Expr[sys: SysConfig](CollectionElement, Writable):
     var out_idx: Int
 
     fn write_to[W: Writer](self, mut writer: W):
-        writer.write(self.call[].func.print(self.call))
+        self.call.write_to(writer)
+        if self.call[].func.n_outs() > 1:
+            writer.write("[", self.out_idx, "]")
 
     fn __add__(self, other: Self) -> Self:
         return Call[sys](Add(), List(self, other))[0]
 
     fn args(self) -> ref [self.call[].args] List[Self]:
-        return self.call[].args
+        return self.call.args()
 
     fn args(self, idx: Int) -> ref [self.call[].args] Self:
-        return self.call[].args[idx]
+        return self.call.args(idx)
 
     fn __copyinit__(out self, existing: Self):
         self.call = existing.call

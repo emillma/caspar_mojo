@@ -6,6 +6,7 @@ from .callable import Lookup, CallableVariant
 
 struct SysConfig[*FuncTs: Callable]:
     alias FuncList = VariadicList[Callable](FuncTs)
+    alias WriterT = FileDescriptor
 
     fn __init__(out self):
         ...
