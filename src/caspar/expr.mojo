@@ -1,7 +1,7 @@
 from memory import UnsafePointer
 from .callable import Callable, CallableVariant
 from caspar.functions import Symbol, Add
-from .sysconfig import SysConfig
+from .sysconfig import SymConfig
 from sys.intrinsics import _type_is_eq
 
 
@@ -49,12 +49,12 @@ struct RcPointer[T: Movable]:
 
 
 # @value
-struct CallData[sys: SysConfig](Movable & Copyable):
+struct CallData[sys: SymConfig](Movable & Copyable):
     alias static_arg_size = 4
     alias static_out_size = 4
 
     var func: CallableVariant[sys]
-    var args: List[Expr[sys]]
+    var args: List[Expr[sys]]  # TODO: Use small-vector optimized collection
 
     @staticmethod
     fn __init__(
@@ -75,7 +75,7 @@ struct CallData[sys: SysConfig](Movable & Copyable):
         self.func = existing.func^
 
 
-struct Call[sys: SysConfig]:
+struct Call[sys: SymConfig]:
     var _data: RcPointer[CallData[sys]]
 
     fn __init__(
@@ -108,7 +108,7 @@ struct Call[sys: SysConfig]:
 
 
 @value
-struct Expr[sys: SysConfig](CollectionElement, Writable):
+struct Expr[sys: SymConfig](CollectionElement, Writable):
     var call: Call[sys]
     var out_idx: Int
 
@@ -117,19 +117,8 @@ struct Expr[sys: SysConfig](CollectionElement, Writable):
         if self.call[].func.n_outs() > 1:
             writer.write("[", self.out_idx, "]")
 
-    fn __add__(self, other: Self) -> Self:
-        return Call[sys](Add(), List(self, other))[0]
-
     fn args(self) -> ref [self.call[].args] List[Self]:
         return self.call.args()
 
     fn args(self, idx: Int) -> ref [self.call[].args] Self:
         return self.call.args(idx)
-
-    fn __copyinit__(out self, existing: Self):
-        self.call = existing.call
-        self.out_idx = existing.out_idx
-
-    fn __moveinit__(out self, owned existing: Self):
-        self.call = existing.call^
-        self.out_idx = existing.out_idx

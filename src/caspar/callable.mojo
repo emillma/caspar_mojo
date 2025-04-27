@@ -3,46 +3,51 @@ from sys import sizeof
 from sys.intrinsics import _type_is_eq
 from os import abort
 from .expr import Expr, Call
-from .sysconfig import SysConfig
+from .sysconfig import SymConfig
+from utils import Variant
 
 
-trait Callable(CollectionElementNew):
+trait Callable(CollectionElement):
     fn n_args(self) -> Int:
         ...
 
     fn n_outs(self) -> Int:
         ...
 
-    fn write_call[sys: SysConfig, W: Writer](self, call: Call[sys], mut writer: W):
+    fn write_call[sys: SymConfig, W: Writer](self, call: Call[sys], mut writer: W):
         ...
 
 
 @value
-struct CallableVariant[sys: SysConfig]:
+struct CallableVariant[sys: SymConfig]:
     alias _mlir_type = __mlir_type[
-        `!kgen.variant<[rebind(:`, __type_of(sys.FuncTs), ` `, sys.FuncTs, `)]>`
+        `!kgen.variant<[rebind(:`,
+        __type_of(sys.callables.Ts),
+        ` `,
+        sys.callables.Ts,
+        `)]>`,
     ]
     var _impl: Self._mlir_type
 
     fn write_call[W: Writer](self, call: Call[sys], mut writer: W):
         @parameter
-        for i in range(len(sys.FuncList)):
-            if self.isa[sys.FuncTs[i]]():
-                return self.unsafe_get[sys.FuncTs[i]]().write_call(call, writer)
+        for i in sys.callables.range():
+            if self.isa[sys.callables.Ts[i]]():
+                return self.unsafe_get[sys.callables.Ts[i]]().write_call(call, writer)
 
     fn n_args(self) -> Int:
         @parameter
-        for i in range(len(sys.FuncList)):
-            alias T = sys.FuncTs[i]
-            if self.isa[sys.FuncTs[i]]():
+        for i in sys.callables.range():
+            alias T = sys.callables.Ts[i]
+            if self.isa[sys.callables.Ts[i]]():
                 return self.unsafe_get[T]().n_args()
         return -1
 
     fn n_outs(self) -> Int:
         @parameter
-        for i in range(len(sys.FuncList)):
-            if self.isa[sys.FuncTs[i]]():
-                return self.unsafe_get[sys.FuncTs[i]]().n_outs()
+        for i in sys.callables.range():
+            if self.isa[sys.callables.Ts[i]]():
+                return self.unsafe_get[sys.callables.Ts[i]]().n_outs()
         return -1
 
     @implicit
@@ -70,10 +75,10 @@ struct CallableVariant[sys: SysConfig]:
     @staticmethod
     fn _type_index_of[T: Callable]() -> Int:
         @parameter
-        for i in range(len(VariadicList(sys.FuncTs))):
+        for i in sys.callables.range():
 
             @parameter
-            if _type_is_eq[sys.FuncTs[i], T]():
+            if _type_is_eq[sys.callables.Ts[i], T]():
                 return i
         abort("Not initialized")
         return -1

@@ -1,0 +1,3 @@
+trait Accessor:
+    fn n_args(self) -> Int:
+        ...
