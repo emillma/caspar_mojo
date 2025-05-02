@@ -13,12 +13,32 @@ struct RcPointerInner[T: Movable]:
     fn __init__(out self, owned value: T):
         self.refcount = 1
         self.payload = value^
+        print(
+            "Initializing refcount to ",
+            self.refcount,
+            UnsafePointer(to=self).origin_cast[origin=MutableAnyOrigin](),
+        )
 
     fn add_ref(mut self):
         self.refcount += 1
+        print(
+            "Increasing refcount to ",
+            self.refcount,
+            UnsafePointer(to=self).origin_cast[origin=MutableAnyOrigin](),
+        )
 
     fn drop_ref(mut self) -> Bool:
         self.refcount -= 1
+        print(
+            "Dropping refcount to ",
+            self.refcount,
+            UnsafePointer(to=self).origin_cast[origin=MutableAnyOrigin](),
+        )
+        debug_assert(
+            self.refcount >= 0,
+            "Refcount should never be negative",
+            UnsafePointer(to=self).origin_cast[origin=MutableAnyOrigin](),
+        )
         return self.refcount == 0
 
 
@@ -38,7 +58,7 @@ struct RcPointer[T: Movable]:
     fn __moveinit__(out self, owned existing: Self):
         self._inner = existing._inner
 
-    @no_inline
+    # @no_inline
     fn __del__(owned self):
         if self._inner[].drop_ref():
             self._inner.destroy_pointee()
@@ -49,7 +69,7 @@ struct RcPointer[T: Movable]:
 
 
 # @value
-struct CallData[sys: SymConfig](Movable & Copyable):
+struct CallData[sys: SymConfig](Movable):
     alias static_arg_size = 4
     alias static_out_size = 4
 
@@ -65,10 +85,6 @@ struct CallData[sys: SymConfig](Movable & Copyable):
         debug_assert(len(args) == func.n_args(), "Invalid number of arguments")
         self.args = args^
         self.func = func^
-
-    fn __copyinit__(out self, existing: Self):
-        self.args = existing.args
-        self.func = existing.func
 
     fn __moveinit__(out self, owned existing: Self):
         self.args = existing.args^
@@ -91,14 +107,8 @@ struct Call[sys: SymConfig]:
     fn __moveinit__(out self, owned existing: Self):
         self._data = existing._data^
 
-    fn __getitem__(self) -> ref [self._data] CallData[sys]:
-        return self._data[]
-
-    fn __getitem__(self, idx: Int) -> Expr[sys]:
-        return Expr[sys](self, idx)
-
-    fn write_to[W: Writer](self, mut writer: W):
-        self[].func.write_call(self, writer)
+    fn func(self) -> ref [self._data[].func] CallableVariant[sys]:
+        return self._data[].func
 
     fn args(self) -> ref [self._data[].args] List[Expr[sys]]:
         return self._data[].args
@@ -106,19 +116,26 @@ struct Call[sys: SymConfig]:
     fn args(self, idx: Int) -> ref [self._data[].args] Expr[sys]:
         return self._data[].args[idx]
 
+    fn __getitem__(owned self, idx: Int) -> Expr[sys]:
+        return Expr[sys](self^, idx)
+
+    fn write_to[W: Writer](self, mut writer: W):
+        self.func().write_call(self, writer)
+
 
 @value
 struct Expr[sys: SymConfig](CollectionElement, Writable):
     var call: Call[sys]
     var out_idx: Int
 
+    fn __moveinit__(out self, owned existing: Self):
+        self.call = existing.call^
+        self.out_idx = existing.out_idx
+
     fn write_to[W: Writer](self, mut writer: W):
         self.call.write_to(writer)
-        if self.call[].func.n_outs() > 1:
+        if self.call.func().n_outs() > 1:
             writer.write("[", self.out_idx, "]")
 
-    fn args(self) -> ref [self.call[].args] List[Self]:
-        return self.call.args()
-
-    fn args(self, idx: Int) -> ref [self.call[].args] Self:
-        return self.call.args(idx)
+    fn __add__(self, other: Self) -> Self:
+        return Call[sys](Add(), List[Self](self, other))[0]
