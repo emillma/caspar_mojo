@@ -13,27 +13,27 @@ struct RcPointerInner[T: Movable]:
     fn __init__(out self, owned value: T):
         self.refcount = 1
         self.payload = value^
-        print(
-            "Initializing refcount to ",
-            self.refcount,
-            UnsafePointer(to=self).origin_cast[origin=MutableAnyOrigin](),
-        )
+        # print(
+        #     "Initializing refcount to ",
+        #     self.refcount,
+        #     UnsafePointer(to=self).origin_cast[origin=MutableAnyOrigin](),
+        # )
 
     fn add_ref(mut self):
         self.refcount += 1
-        print(
-            "Increasing refcount to ",
-            self.refcount,
-            UnsafePointer(to=self).origin_cast[origin=MutableAnyOrigin](),
-        )
+        # print(
+        #     "Increasing refcount to ",
+        #     self.refcount,
+        #     UnsafePointer(to=self).origin_cast[origin=MutableAnyOrigin](),
+        # )
 
     fn drop_ref(mut self) -> Bool:
         self.refcount -= 1
-        print(
-            "Dropping refcount to ",
-            self.refcount,
-            UnsafePointer(to=self).origin_cast[origin=MutableAnyOrigin](),
-        )
+        # print(
+        #     "Dropping refcount to ",
+        #     self.refcount,
+        #     UnsafePointer(to=self).origin_cast[origin=MutableAnyOrigin](),
+        # )
         debug_assert(
             self.refcount >= 0,
             "Refcount should never be negative",
@@ -124,7 +124,7 @@ struct Call[sys: SymConfig]:
 
 
 @value
-struct Expr[sys: SymConfig](CollectionElement, Writable):
+struct Expr[sys: SymConfig](Movable & Copyable, Writable):
     var call: Call[sys]
     var out_idx: Int
 

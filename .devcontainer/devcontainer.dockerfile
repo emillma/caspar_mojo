@@ -1,8 +1,13 @@
-FROM ghcr.io/modular/magic:jammy-cuda-12.6.3
+FROM nvidia/cuda:12.8.0-cudnn-devel-ubuntu22.04
+# FROM ghcr.io/modular/magic:jammy-cuda-12.6.3
 
 ENV DEBIAN_FRONTEND=noninteractive
 
+RUN apt install -y  build-essential cmake git wget curl
+RUN curl -ssL https://magic.modular.com/9b51ba45-3152-4afa-8626-984b0bc752e5 | bash
+RUN apt install -y zlib1g-dev libtinfo-dev
 # WORKDIR /root
+# RUN magic self-update
 RUN apt clean && apt update
 RUN apt install -y  build-essential cmake git wget
 RUN echo "export PATH=$PATH:/root/.vscode-server/data/User/globalStorage/modular-mojotools.vscode-mojo-nightly/magic-data-home/envs/max/bin" >> /root/.bashrc

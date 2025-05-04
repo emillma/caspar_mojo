@@ -3,6 +3,7 @@ from caspar.expr import Expr, Call
 from caspar.sysconfig import SymConfigDefault, SymConfig, RunTimeDefault
 from sys import sizeof
 from caspar.storage import Storage, Vec
+from caspar.graph import Graph, ReadSequential, WriteSequential
 
 
 @value
@@ -11,19 +12,18 @@ struct Foo:
         print("Foo destructor called")
 
 
-fn main():
-    # var y = x
-    # print(x + x)
-    var x = Call[SymConfigDefault](Symbol("x"))[0]
-    var y = Call[SymConfigDefault](Symbol("y"))[0]
-    var v1 = Vec[Expr[SymConfigDefault], 2](x, y)
-    var v2 = Vec[Expr[SymConfigDefault], 2](x, x)
+fn foo() -> String:
+    x = Call[SymConfigDefault](Symbol("x"))[0]
+    y = Call[SymConfigDefault](Symbol("y"))[0]
+    v1 = Vec[Expr[SymConfigDefault], 2](x, y)
+    v2 = Vec[Expr[SymConfigDefault], 2](x, x)
     var v3 = v1 + v2
-    print(v3[1])
-    # print(v3[0])
+    return Graph(ReadSequential(v1), WriteSequential(v3)).name
 
-    # var tot = Call[SymConfigDefault](Add(), List(x, y))[0]
-    # var a = ExprOrData[SymConfig[False]()](3.2)
-    # print(RunTimeDefault.add(x, y) + y)
-    # print(tot)
-    # print(String((x + y)))
+    # return String(v3[1]) + String(v3[0])
+
+
+fn main():
+    alias bar = foo()
+    # alias kernel = Kernel[foo()]
+    print(bar)

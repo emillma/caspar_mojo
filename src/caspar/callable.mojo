@@ -7,7 +7,7 @@ from .sysconfig import SymConfig
 from utils import Variant
 
 
-trait Callable(CollectionElement):
+trait Callable(Movable & Copyable):
     fn n_args(self) -> Int:
         ...
 
@@ -18,7 +18,7 @@ trait Callable(CollectionElement):
         ...
 
 
-@value
+# @value
 struct CallableVariant[sys: SymConfig]:
     alias _mlir_type = __mlir_type[
         `!kgen.variant<[rebind(:`,
@@ -55,6 +55,9 @@ struct CallableVariant[sys: SymConfig]:
         __mlir_op.`lit.ownership.mark_initialized`(__get_mvalue_as_litref(self))
         self._get_type_index() = self._type_index_of[T]()
         self._get_ptr[T]().init_pointee_move(value^)
+
+    fn __moveinit__(out self, owned existing: Self):
+        self._impl = existing._impl
 
     fn __copyinit__(out self, other: Self):
         self._impl = other._impl
