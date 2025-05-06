@@ -1,164 +1,113 @@
 from memory import UnsafePointer
-from .callable import Callable, CallableVariant
-from caspar.functions import Symbol, Add
+from .callable import CallableVariant
 from .sysconfig import SymConfig
-from sys.intrinsics import _type_is_eq
-from .utils import multihash
 
 
-struct RcPointerInner[T: Movable]:
+struct GraphMem[config: SymConfig]:
+    var calls: List[CallMem[config]]
     var refcount: Int
-    var payload: T
 
-    @implicit
-    fn __init__(out self, owned value: T):
+    fn __init__(out self):
+        self.calls = List[CallMem[config]]()
         self.refcount = 1
-        self.payload = value^
-        # print(
-        #     "Initializing refcount to ",
-        #     self.refcount,
-        #     UnsafePointer(to=self).origin_cast[origin=MutableAnyOrigin](),
-        # )
 
     fn add_ref(mut self):
         self.refcount += 1
-        # print(
-        #     "Increasing refcount to ",
-        #     self.refcount,
-        #     UnsafePointer(to=self).origin_cast[origin=MutableAnyOrigin](),
-        # )
 
     fn drop_ref(mut self) -> Bool:
         self.refcount -= 1
-        # print(
-        #     "Dropping refcount to ",
-        #     self.refcount,
-        #     UnsafePointer(to=self).origin_cast[origin=MutableAnyOrigin](),
-        # )
-        debug_assert(
-            self.refcount >= 0,
-            "Refcount should never be negative",
-            UnsafePointer(to=self).origin_cast[origin=MutableAnyOrigin](),
-        )
+        debug_assert(self.refcount >= 0, "Refcount should never be negative")
         return self.refcount == 0
 
 
-struct RcPointer[T: Movable]:
-    alias InnerT = RcPointerInner[T]
-    var _inner: UnsafePointer[Self.InnerT]
+@register_passable
+struct GraphRef[config: SymConfig]:
+    var ptr: UnsafePointer[GraphMem[config]]
 
-    @implicit
-    fn __init__(out self, owned value: T):
-        self._inner = UnsafePointer[Self.InnerT].alloc(1)
-        __get_address_as_uninit_lvalue(self._inner.address) = Self.InnerT(value^)
+    fn __init__(out self, *, initialize: Bool):
+        debug_assert(initialize, "GraphRef should be initialized with initialize=True")
+        self.ptr = UnsafePointer[GraphMem[config]].alloc(1)
+        __get_address_as_uninit_lvalue(self.ptr.address) = GraphMem[config]()
 
     fn __copyinit__(out self, existing: Self):
-        existing._inner[].add_ref()
-        self._inner = existing._inner
+        existing[].add_ref()
+        self.ptr = existing.ptr
 
-    fn __moveinit__(out self, owned existing: Self):
-        self._inner = existing._inner
+    fn __getitem__(self) -> ref [self.ptr.origin] GraphMem[config]:
+        return self.ptr[]
 
-    # @no_inline
     fn __del__(owned self):
-        if self._inner[].drop_ref():
-            self._inner.destroy_pointee()
-            self._inner.free()
+        if self[].drop_ref():
+            self.ptr.destroy_pointee()
+            self.ptr.free()
 
-    fn __getitem__(self) -> ref [self] T:
-        return self._inner[].payload
+    fn __is__(self, other: Self) -> Bool:
+        return self.ptr == other.ptr
 
-
-# @value
-struct CallData[sys: SymConfig](Movable):
-    alias static_arg_size = 4
-    alias static_out_size = 4
-
-    var func: CallableVariant[sys]
-    var args: List[Expr[sys]]  # TODO: Use small-vector optimized collection
-
-    @staticmethod
-    fn __init__(
-        out self: Self,
-        owned func: CallableVariant[sys],
-        owned args: List[Expr[sys]],
-    ):
-        debug_assert(len(args) == func.n_args(), "Invalid number of arguments")
-        self.args = args^
-        self.func = func^
-
-    fn __moveinit__(out self, owned existing: Self):
-        self.args = existing.args^
-        self.func = existing.func^
+    fn call(
+        mut self, func: CallableVariant[config], *args: Expr[config]
+    ) -> CallRef[config]:
+        self[].calls.append(CallMem(func, args))
+        return CallRef[config](self, len(self[].calls) - 1)
 
 
-struct Call[sys: SymConfig]:
-    var _data: RcPointer[CallData[sys]]
+@value
+@register_passable("trivial")
+struct ArgIdx:
+    var call: Int
+    var out: Int
+
+
+@value
+struct CallMem[config: SymConfig]:
+    var func: CallableVariant[config]
+    var args: List[ArgIdx]
 
     fn __init__(
         out self,
-        owned func: CallableVariant[sys],
-        owned args: List[Expr[sys]] = List[Expr[sys]](),
+        owned func: CallableVariant[config],
+        args: VariadicListMem[Expr[config]],
     ):
-        self._data = RcPointer(CallData[sys](func^, args^))
+        self.func = func^
+        self.args = List[ArgIdx](capacity=len(args))
+        for arg in args:
+            self.args.append(ArgIdx(arg[].call.idx, arg[].out_idx))
 
-    fn __copyinit__(out self, existing: Self):
-        self._data = existing._data
 
-    fn __moveinit__(out self, owned existing: Self):
-        self._data = existing._data^
+@value
+@register_passable
+struct CallRef[config: SymConfig]:
+    var graph: GraphRef[config]
+    var idx: Int
 
-    fn func(self) -> ref [self._data[].func] CallableVariant[sys]:
-        return self._data[].func
+    fn func(self) -> ref [self.graph[].calls[self.idx].func] CallableVariant[config]:
+        return self.graph[].calls[self.idx].func
 
-    fn args(self) -> ref [self._data[].args] List[Expr[sys]]:
-        return self._data[].args
+    fn outs(self, idx: Int) -> Expr[config]:
+        return Expr[config](self, idx)
 
-    fn args(self, idx: Int) -> ref [self._data[].args] Expr[sys]:
-        return self._data[].args[idx]
-
-    fn __getitem__(owned self, idx: Int) -> Expr[sys]:
-        return Expr[sys](self^, idx)
+    fn args(self, idx: Int) -> Expr[config]:
+        var expr = self.graph[].calls[self.idx].args[idx]
+        return Expr[config](CallRef[config](self.graph, expr.call), expr.out)
 
     fn write_to[W: Writer](self, mut writer: W):
         self.func().write_call(self, writer)
 
-    fn __eq__(self, other: Self) -> Bool:
-        if self.func() != self.func():
-            return False
-        for i in range(len(self.args())):
-            if self.args(i) != other.args(i):
-                return False
-        return True
-
-    fn __ne__(self, other: Self) -> Bool:
-        if self.func() != self.func():
-            return True
-        for i in range(len(self.args())):
-            if self.args(i) != other.args(i):
-                return True
-        return False
-
 
 @value
-struct Expr[sys: SymConfig](Movable & Copyable, Writable):
-    var call: Call[sys]
+@register_passable
+struct Expr[config: SymConfig]:
+    var call: CallRef[config]
     var out_idx: Int
 
-    fn __moveinit__(out self, owned existing: Self):
-        self.call = existing.call^
-        self.out_idx = existing.out_idx
+    fn __init__(out self, call: CallRef[config], idx: Int):
+        self.call = call
+        self.out_idx = idx
+
+    fn args(self, idx: Int) -> Expr[config]:
+        return self.call.args(idx)
 
     fn write_to[W: Writer](self, mut writer: W):
         self.call.write_to(writer)
         if self.call.func().n_outs() > 1:
             writer.write("[", self.out_idx, "]")
-
-    fn __add__(self, other: Self) -> Self:
-        return Call[sys](Add(), List[Self](self, other))[0]
-
-    fn __eq__(self, other: Self) -> Bool:
-        return self.call == other.call and self.out_idx == other.out_idx
-
-    fn __ne__(self, other: Self) -> Bool:
-        return self.call != other.call or self.out_idx != other.out_idx

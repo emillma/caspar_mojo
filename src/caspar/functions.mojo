@@ -1,5 +1,5 @@
 from .callable import Callable, CallableVariant
-from .expr import Expr, Call
+from .expr import CallRef
 from .sysconfig import SymConfig
 
 
@@ -13,7 +13,7 @@ struct Symbol(Callable):
     fn n_outs(self) -> Int:
         return 1
 
-    fn write_call[sys: SymConfig, W: Writer](self, call: Call[sys], mut writer: W):
+    fn write_call[sys: SymConfig, W: Writer](self, call: CallRef[sys], mut writer: W):
         writer.write(self.data)
 
     fn __eq__(self, other: Self) -> Bool:
@@ -31,10 +31,10 @@ struct Add(Callable):
     fn n_outs(self) -> Int:
         return 1
 
-    fn write_call[sys: SymConfig, W: Writer](self, call: Call[sys], mut writer: W):
-        call.args(0).write_to(writer)
+    fn write_call[sys: SymConfig, W: Writer](self, call: CallRef[sys], mut writer: W):
+        # call.args(0).write_to(writer)
         writer.write(" + ")
-        call.args(1).write_to(writer)
+        # call.args(1).write_to(writer)
 
     fn __eq__(self, other: Self) -> Bool:
         return True
