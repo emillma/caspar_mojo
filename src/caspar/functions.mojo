@@ -16,6 +16,12 @@ struct Symbol(Callable):
     fn write_call[sys: SymConfig, W: Writer](self, call: Call[sys], mut writer: W):
         writer.write(self.data)
 
+    fn __eq__(self, other: Self) -> Bool:
+        return self.data == other.data
+
+    fn __hash__(self) -> UInt:
+        return hash(self.data)
+
 
 @value
 struct Add(Callable):
@@ -29,3 +35,9 @@ struct Add(Callable):
         call.args(0).write_to(writer)
         writer.write(" + ")
         call.args(1).write_to(writer)
+
+    fn __eq__(self, other: Self) -> Bool:
+        return True
+
+    fn __hash__(self) -> UInt:
+        return 0

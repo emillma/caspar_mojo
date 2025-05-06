@@ -3,6 +3,7 @@ from .callable import Callable, CallableVariant
 from caspar.functions import Symbol, Add
 from .sysconfig import SymConfig
 from sys.intrinsics import _type_is_eq
+from .utils import multihash
 
 
 struct RcPointerInner[T: Movable]:
@@ -122,6 +123,22 @@ struct Call[sys: SymConfig]:
     fn write_to[W: Writer](self, mut writer: W):
         self.func().write_call(self, writer)
 
+    fn __eq__(self, other: Self) -> Bool:
+        if self.func() != self.func():
+            return False
+        for i in range(len(self.args())):
+            if self.args(i) != other.args(i):
+                return False
+        return True
+
+    fn __ne__(self, other: Self) -> Bool:
+        if self.func() != self.func():
+            return True
+        for i in range(len(self.args())):
+            if self.args(i) != other.args(i):
+                return True
+        return False
+
 
 @value
 struct Expr[sys: SymConfig](Movable & Copyable, Writable):
@@ -139,3 +156,9 @@ struct Expr[sys: SymConfig](Movable & Copyable, Writable):
 
     fn __add__(self, other: Self) -> Self:
         return Call[sys](Add(), List[Self](self, other))[0]
+
+    fn __eq__(self, other: Self) -> Bool:
+        return self.call == other.call and self.out_idx == other.out_idx
+
+    fn __ne__(self, other: Self) -> Bool:
+        return self.call != other.call or self.out_idx != other.out_idx

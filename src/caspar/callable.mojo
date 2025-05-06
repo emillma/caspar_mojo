@@ -5,9 +5,10 @@ from os import abort
 from .expr import Expr, Call
 from .sysconfig import SymConfig
 from utils import Variant
+from .utils import multihash
 
 
-trait Callable(Movable & Copyable):
+trait Callable(Movable & Copyable & Hashable):
     fn n_args(self) -> Int:
         ...
 
@@ -15,6 +16,9 @@ trait Callable(Movable & Copyable):
         ...
 
     fn write_call[sys: SymConfig, W: Writer](self, call: Call[sys], mut writer: W):
+        ...
+
+    fn __eq__(self, other: Self, out ret: Bool):
         ...
 
 
@@ -49,6 +53,32 @@ struct CallableVariant[sys: SymConfig]:
             if self.isa[sys.callables.Ts[i]]():
                 return self.unsafe_get[sys.callables.Ts[i]]().n_outs()
         return -1
+
+    fn __eq__(self, other: Self, out ret: Bool):
+        @parameter
+        fn inner[T: Callable]():
+            ret = self.unsafe_get[T]() == other.unsafe_get[T]()
+
+        ret = False
+        if self._get_type_index() == other._get_type_index():
+            self.do[inner]()
+
+    fn __ne__(self, other: Self, out ret: Bool):
+        return not self.__eq__(other)
+
+    fn __hash__(self, out ret: UInt):
+        @parameter
+        fn inner[T: Callable]():
+            ret = multihash(self._get_type_index(), self.unsafe_get[T]())
+
+        ret = 0
+        self.do[inner]()
+
+    fn do[func: fn[T: Callable] () capturing](self):
+        @parameter
+        for i in sys.callables.range():
+            if self.isa[sys.callables.Ts[i]]():
+                return func[sys.callables.Ts[i]]()
 
     @implicit
     fn __init__[T: Callable](out self, owned value: T):
