@@ -1,6 +1,7 @@
 from memory import UnsafePointer
 from .callable import CallableVariant
 from .sysconfig import SymConfig
+from .functions import Symbol, Add
 
 
 struct GraphMem[config: SymConfig]:
@@ -44,8 +45,8 @@ struct GraphRef[config: SymConfig]:
     fn __is__(self, other: Self) -> Bool:
         return self.ptr == other.ptr
 
-    fn call(
-        mut self, func: CallableVariant[config], *args: Expr[config]
+    fn add_call(
+        self, func: CallableVariant[config], *args: Expr[config]
     ) -> CallRef[config]:
         self[].calls.append(CallMem(func, args))
         return CallRef[config](self, len(self[].calls) - 1)
@@ -71,7 +72,7 @@ struct CallMem[config: SymConfig]:
         self.func = func^
         self.args = List[ArgIdx](capacity=len(args))
         for arg in args:
-            self.args.append(ArgIdx(arg[].call.idx, arg[].out_idx))
+            self.args.append(arg[].idx)
 
 
 @value
@@ -97,17 +98,23 @@ struct CallRef[config: SymConfig]:
 @value
 @register_passable
 struct Expr[config: SymConfig]:
-    var call: CallRef[config]
-    var out_idx: Int
+    var graph: GraphRef[config]
+    var idx: ArgIdx
 
     fn __init__(out self, call: CallRef[config], idx: Int):
-        self.call = call
-        self.out_idx = idx
+        self.graph = call.graph
+        self.idx = ArgIdx(call.idx, idx)
+
+    fn call(self) -> CallRef[config]:
+        return CallRef[config](self.graph, self.idx.call)
 
     fn args(self, idx: Int) -> Expr[config]:
-        return self.call.args(idx)
+        return Expr(self.graph, self.graph[].calls[self.idx.call].args[idx])
 
     fn write_to[W: Writer](self, mut writer: W):
-        self.call.write_to(writer)
-        if self.call.func().n_outs() > 1:
-            writer.write("[", self.out_idx, "]")
+        self.call().write_to(writer)
+        if self.call().func().n_outs() > 1:
+            writer.write("[", self.idx.out, "]")
+
+    fn __add__(self, other: Self) -> Self:
+        return self.graph.add_call(Add(), self, other).outs(0)
