@@ -27,7 +27,9 @@ struct Symbol(Callable):
     fn n_outs(self) -> Int:
         return 1
 
-    fn write_call[sys: SymConfig, W: Writer](self, call: Call[sys], mut writer: W):
+    fn write_call[
+        sys: SymConfig, W: Writer
+    ](self, call: Call[sys], mut writer: W):
         writer.write(self.data)
 
 
@@ -39,10 +41,12 @@ struct Add(Callable):
     fn n_outs(self) -> Int:
         return 1
 
-    fn write_call[sys: SymConfig, W: Writer](self, call: Call[sys], mut writer: W):
-        call.args(0).write_to(writer)
+    fn write_call[
+        sys: SymConfig, W: Writer
+    ](self, call: Call[sys], mut writer: W):
+        call.args[0].write_to(writer)
         writer.write(" + ")
-        call.args(1).write_to(writer)
+        call.args[1].write_to(writer)
 
 
 @value
@@ -55,5 +59,7 @@ struct AnyFunc(Callable):
         debug_assert(False, "AnyFunc should not be used as a function type")
         return -1
 
-    fn write_call[sys: SymConfig, W: Writer](self, call: Call[sys], mut writer: W):
+    fn write_call[
+        sys: SymConfig, W: Writer
+    ](self, call: Call[sys], mut writer: W):
         debug_assert(False, "AnyFunc should not be used as a function type")

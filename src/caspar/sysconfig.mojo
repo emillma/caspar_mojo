@@ -19,13 +19,15 @@ struct FuncCollection[*Ts: Callable]:
 
     @staticmethod
     fn func_to_idx[T: Callable]() -> Int:
+        constrained[Self.supports[T](), "Type not supported"]()
+
         @parameter
         for i in Self.func_range():
 
             @parameter
             if _type_is_eq[T, Self.Ts[i]]():
                 return i
-        abort("Function type not found in FuncCollection")
+
         return -1
 
     @staticmethod

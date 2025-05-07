@@ -7,6 +7,16 @@ from sys.intrinsics import _type_is_eq
 alias StackList = List
 
 
+@value
+@nonmaterializable(Int)
+@register_passable("trivial")
+struct FuncTypeIdx:
+    var data: Int
+
+    fn __int__(self) -> Int:
+        return self.data
+
+
 struct CallStorage[config: SymConfig]:
     var ptrs: InlineArray[
         UnsafePointer[Byte],
@@ -14,7 +24,9 @@ struct CallStorage[config: SymConfig]:
         run_destructors=True,
     ]
     var counts: InlineArray[Int, config.callables.size, run_destructors=True]
-    var capacities: InlineArray[Int, config.callables.size, run_destructors=True]
+    var capacities: InlineArray[
+        Int, config.callables.size, run_destructors=True
+    ]
     var strides: InlineArray[Int, config.callables.size, run_destructors=True]
 
     fn __init__(out self):
@@ -30,7 +42,9 @@ struct CallStorage[config: SymConfig]:
             self.ptrs[i] = UnsafePointer[CallT].alloc(init_size).bitcast[Byte]()
             self.counts.unsafe_ptr().offset(i).init_pointee_move(0)
             self.capacities.unsafe_ptr().offset(i).init_pointee_move(init_size)
-            self.strides.unsafe_ptr().offset(i).init_pointee_move(sizeof[CallT]())
+            self.strides.unsafe_ptr().offset(i).init_pointee_move(
+                sizeof[CallT]()
+            )
 
     fn __del__(owned self):
         @parameter
@@ -50,7 +64,9 @@ struct CallStorage[config: SymConfig]:
 
     fn ptr(
         mut self, func_type: Int, idx: Int
-    ) -> UnsafePointer[CallMem[config, AnyFunc], origin = __origin_of(self.ptrs)]:
+    ) -> UnsafePointer[
+        CallMem[config, AnyFunc], origin = __origin_of(self.ptrs)
+    ]:
         return (
             self.ptrs[func_type]
             .offset(idx * self.strides[func_type])
@@ -104,7 +120,9 @@ struct GraphRef[config: SymConfig]:
     var ptr: UnsafePointer[GraphMem[config]]
 
     fn __init__(out self, *, initialize: Bool):
-        debug_assert(initialize, "GraphRef should be initialized with initialize=True")
+        debug_assert(
+            initialize, "GraphRef should be initialized with initialize=True"
+        )
         self.ptr = UnsafePointer[GraphMem[config]].alloc(1)
         __get_address_as_uninit_lvalue(self.ptr.address) = GraphMem[config]()
 
@@ -125,7 +143,9 @@ struct GraphRef[config: SymConfig]:
 
     fn add_call[
         FT: Callable,
-    ](self, owned func: FT, owned *args: Expr[config, AnyFunc]) -> Call[config, FT]:
+    ](self, owned func: FT, owned *args: Expr[config, AnyFunc]) -> Call[
+        config, FT
+    ]:
         var arglist = StackList[Int](capacity=len(args))
         for arg in args:
             arglist.append(arg[].idx)
@@ -163,18 +183,29 @@ struct CallMem[config: SymConfig, FuncT: Callable]:
     #     self.args.append(arg[].idx)
 
 
-@value
+# @value
 @register_passable
 struct Call[config: SymConfig, FuncT: Callable]:
     var graph: GraphRef[config]
     var idx: Int
+
+    fn __init__(out self, graph: GraphRef[config], idx: Int):
+        self.graph = graph
+        self.idx = idx
 
     fn __getitem__(
         self,
     ) -> ref [self.graph[].calls.ptr[FuncT](self.idx)[]] CallMem[config, FuncT]:
         return self.graph[].calls.ptr[FuncT](self.idx)[]
 
-    fn func(self) -> ref [self[].func] FuncT:
+    fn __getattr__[
+        name: StringLiteral["args".value]
+    ](self) -> ref [self[].args] StackList[Int]:
+        return self[].args
+
+    fn __getattr__[
+        name: StringLiteral["func".value]
+    ](self) -> ref [self[].func] FuncT:
         return self[].func
 
     fn __getitem__(self, idx: Int) -> Expr[config, FuncT]:
@@ -183,11 +214,14 @@ struct Call[config: SymConfig, FuncT: Callable]:
     fn outs(self, idx: Int) -> Expr[config, FuncT]:
         return Expr[config, FuncT](self.graph, self[].outs[idx])
 
-    fn args(self, idx: Int) -> Expr[config, AnyFunc]:
-        return Expr[config, AnyFunc](self.graph, self[].args[idx])
+    # fn args(self) -> ref [self[].args] StackList[Int]:
+    #     return self[].args
+
+    # fn args(self, idx: Int) -> Expr[config, AnyFunc]:
+    #     return Expr[config, AnyFunc](self.graph, self.args()[idx])
 
     fn write_to[W: Writer](self, mut writer: W):
-        self.func().write_call(self, writer)
+        self.func.write_call(self, writer)
 
 
 @value
@@ -203,40 +237,44 @@ struct Expr[config: SymConfig, FuncT: Callable]:
     var graph: GraphRef[config]
     var idx: Int
 
+    fn __repr__(self) -> String:
+        return "hello"
+
     @implicit
-    fn __init__[FT: Callable](out self: Expr[config, AnyFunc], other: Expr[config, FT]):
+    fn __init__[
+        FT: Callable
+    ](out self: Expr[config, AnyFunc], other: Expr[config, FT]):
+        constrained[config.callables.supports[FT](), "Type not supported"]()
         self.graph = other.graph
         self.idx = other.idx
 
     fn __getitem__(self) -> ExprMem[config]:
         return self.graph[].exprs[self.idx]
 
-    fn call(self) -> Call[config, FuncT]:
-        debug_assert(
-            not _type_is_eq[FuncT, AnyFunc](),
-            "FuncT must be a Callable",
-        )
+    fn __getattr__[
+        name: StringLiteral["call".value]
+    ](self) -> Call[config, FuncT]:
         return Call[config, FuncT](self.graph, self[].func_idx)
 
-    fn args(self, idx: Int) -> Expr[config, FuncT]:
-        @parameter
-        if not _type_is_eq[FuncT, AnyFunc]():
-            return self.call().args(idx)
-        else:
-            return self.graph[].calls.ptr(self[].func_type, self[].func_idx)[].args[idx]
+    fn __getattr__[
+        name: StringLiteral["args".value]
+    ](self) -> ref [
+        self.graph[].calls.ptr(self[].func_type, self[].func_idx)[].args
+    ] StackList[Int]:
+        return self.call.args
 
     fn write_to[W: Writer](self, mut writer: W):
         @parameter
-        if not _type_is_eq[FuncT, AnyFunc]():
-            self.call().write_to(writer)
-        else:
+        if _type_is_eq[FuncT, AnyFunc]():
 
             @parameter
             for i in config.callables.range():
                 if self[].func_type == i:
                     var view = self.view[config.callables.Ts[i]]()
-                    view.call().func().write_call(view.call(), writer)
-                    return
+                    return view.call.func.write_call(view.call, writer)
+
+        else:
+            self.call.write_to(writer)
 
     fn view[FT: Callable](self) -> Expr[config, FT]:
         debug_assert(

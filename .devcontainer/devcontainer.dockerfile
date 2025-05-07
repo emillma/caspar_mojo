@@ -3,14 +3,14 @@ FROM nvidia/cuda:12.8.0-cudnn-devel-ubuntu22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-RUN apt install -y  build-essential cmake git wget curl
+RUN apt clean && apt update
+RUN apt install -y build-essential git wget curl
+RUN apt install -y llvm
 RUN curl -ssL https://magic.modular.com/9b51ba45-3152-4afa-8626-984b0bc752e5 | bash
 RUN apt install -y zlib1g-dev libtinfo-dev
 # WORKDIR /root
 # RUN magic self-update
-RUN apt clean && apt update
-RUN apt install -y  build-essential cmake git wget
-RUN echo "export PATH=$PATH:/root/.vscode-server/data/User/globalStorage/modular-mojotools.vscode-mojo-nightly/magic-data-home/envs/max/bin" >> /root/.bashrc
+# RUN echo "export PATH=$PATH:/root/.vscode-server/data/User/globalStorage/modular-mojotools.vscode-mojo-nightly/magic-data-home/envs/max/bin" >> /root/.bashrc
 # RUN magic self-update --force
 # # Latex (from https://github.com/blang/latex-docker/blob/master/Dockerfile.ubuntu)
 # RUN apt install -y locales && locale-gen en_US.UTF-8 && update-locale
@@ -134,6 +134,7 @@ RUN git config --global user.name "Emil Martens"
 
 # remote display
 WORKDIR /root
+RUN echo "\n" >> .bashrc
 RUN echo "export DISPLAY=host.docker.internal:0.0" >> .bashrc
 RUN echo "export LIBGL_ALWAYS_INDIRECT=1" >> .bashrc
 RUN echo "export DEBUGPY_PROCESS_SPAWN_TIMEOUT=1200" >> ~/.profile
