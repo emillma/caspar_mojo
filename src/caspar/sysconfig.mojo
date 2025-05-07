@@ -1,7 +1,8 @@
-from .functions import Symbol, Add, Any, Callable
+from .functions import Symbol, Add, Callable
 from .expr import Expr, Call
 from stdlib.builtin.range import _SequentialRange
 from sys.intrinsics import _type_is_eq
+from os import abort
 
 
 struct FuncCollection[*Ts: Callable]:
@@ -24,7 +25,16 @@ struct FuncCollection[*Ts: Callable]:
             @parameter
             if _type_is_eq[T, Self.Ts[i]]():
                 return i
+        abort("Function type not found in FuncCollection")
         return -1
+
+    @staticmethod
+    fn supports[T: Callable]() -> Bool:
+        @parameter
+        for i in Self.func_range():
+            if _type_is_eq[T, Self.Ts[i]]():
+                return True
+        return False
 
     fn __init__(out self):
         ...
