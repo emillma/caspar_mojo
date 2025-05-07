@@ -7,14 +7,35 @@ from sys.intrinsics import _type_is_eq
 alias StackList = List
 
 
-@value
-@nonmaterializable(Int)
 @register_passable("trivial")
-struct FuncTypeIdx:
-    var data: Int
+struct Index[T: StringLiteral](Indexer):
+    var value: Int
 
+    @implicit
+    fn __init__(out self, value: Int):
+        self.value = value
+
+    @always_inline
+    fn __index__(self) -> __mlir_type.index:
+        return self.value.__index__()
+
+    @always_inline
     fn __int__(self) -> Int:
-        return self.data
+        return self.value
+
+    @always_inline
+    fn __eq__(self, other: Self) -> Bool:
+        return self.value == other.value
+
+    @always_inline
+    fn __req__(self, other: Self) -> Bool:
+        return self.value == other.value
+
+
+alias CallIdx = Index["callmem"]
+alias ExprIdx = Index["exprmem"]
+alias OutIdx = Index["output"]
+alias FuncTypeIdx = Index["functype"]
 
 
 struct CallStorage[config: SymConfig]:
@@ -56,44 +77,44 @@ struct CallStorage[config: SymConfig]:
 
     fn ptr[
         FT: Callable
-    ](mut self, idx: Int) -> UnsafePointer[
+    ](mut self, idx: CallIdx) -> UnsafePointer[
         CallMem[config, FT], origin = __origin_of(self.ptrs)
     ]:
-        alias func_idx = Self.func_idx[FT]()
-        return self.ptrs[func_idx].bitcast[CallMem[config, FT]]().offset(idx)
+        alias call_idx = Self.call_idx[FT]()
+        return self.ptrs[call_idx].bitcast[CallMem[config, FT]]().offset(idx)
 
     fn ptr(
-        mut self, func_type: Int, idx: Int
+        mut self, func_type: FuncTypeIdx, idx: CallIdx
     ) -> UnsafePointer[
         CallMem[config, AnyFunc], origin = __origin_of(self.ptrs)
     ]:
         return (
             self.ptrs[func_type]
-            .offset(idx * self.strides[func_type])
+            .offset(Int(idx) * self.strides[func_type])
             .bitcast[CallMem[config, AnyFunc]]()
         )
 
     fn add[FT: Callable](mut self, owned call_mem: CallMem[config, FT]):
-        alias func_idx = Self.func_idx[FT]()
+        alias call_idx = Self.call_idx[FT]()
         debug_assert(
-            self.counts[func_idx] < self.capacities[func_idx],
+            self.counts[call_idx] < self.capacities[call_idx],
             "CallStorage is full for function type",
         )
-        self.ptr[FT](self.counts[func_idx]).init_pointee_copy(call_mem^)
-        self.counts[func_idx] += 1
+        self.ptr[FT](self.counts[call_idx]).init_pointee_copy(call_mem^)
+        self.counts[call_idx] += 1
 
     @staticmethod
     @parameter
-    fn func_idx[FT: Callable]() -> Int:
+    fn call_idx[FT: Callable]() -> Int:
         return config.callables.func_to_idx[FT]()
 
     fn count[FT: Callable](self) -> Int:
-        alias func_idx = Self.func_idx[FT]()
-        return self.counts[func_idx]
+        alias call_idx = Self.call_idx[FT]()
+        return self.counts[call_idx]
 
     fn capacity[FT: Callable](self) -> Int:
-        alias func_idx = Self.func_idx[FT]()
-        return self.capacities[func_idx]
+        alias call_idx = Self.call_idx[FT]()
+        return self.capacities[call_idx]
 
 
 struct GraphMem[config: SymConfig]:
@@ -146,11 +167,11 @@ struct GraphRef[config: SymConfig]:
     ](self, owned func: FT, owned *args: Expr[config, AnyFunc]) -> Call[
         config, FT
     ]:
-        var arglist = StackList[Int](capacity=len(args))
+        var arglist = StackList[ExprIdx](capacity=len(args))
         for arg in args:
             arglist.append(arg[].idx)
 
-        var outlist = StackList[Int](capacity=func.n_outs())
+        var outlist = StackList[ExprIdx](capacity=func.n_outs())
         for i in range(func.n_outs()):
             outlist.append(len(self[].exprs))
             self[].exprs.append(
@@ -168,28 +189,17 @@ struct GraphRef[config: SymConfig]:
 
 @value
 struct CallMem[config: SymConfig, FuncT: Callable]:
-    var args: StackList[Int]
-    var outs: StackList[Int]
+    var args: StackList[ExprIdx]
+    var outs: StackList[ExprIdx]
     var func: FuncT
 
-    # fn __init__(
-    #     out self,
-    #     owned func: FuncT,
-    #     owned args: VariadicListMem[Expr[config]],
-    # ):
-    #     self.func = func^
-    #     self.args = List[ArgIdx](capacity=len(args))
-    # for arg in args:
-    #     self.args.append(arg[].idx)
 
-
-# @value
 @register_passable
 struct Call[config: SymConfig, FuncT: Callable]:
     var graph: GraphRef[config]
-    var idx: Int
+    var idx: CallIdx
 
-    fn __init__(out self, graph: GraphRef[config], idx: Int):
+    fn __init__(out self, graph: GraphRef[config], idx: CallIdx):
         self.graph = graph
         self.idx = idx
 
@@ -198,10 +208,8 @@ struct Call[config: SymConfig, FuncT: Callable]:
     ) -> ref [self.graph[].calls.ptr[FuncT](self.idx)[]] CallMem[config, FuncT]:
         return self.graph[].calls.ptr[FuncT](self.idx)[]
 
-    fn __getattr__[
-        name: StringLiteral["args".value]
-    ](self) -> ref [self[].args] StackList[Int]:
-        return self[].args
+    fn args(self, idx: ExprIdx) -> Expr[config, AnyFunc]:
+        return Expr[config, AnyFunc](self.graph, self[].args[idx])
 
     fn __getattr__[
         name: StringLiteral["func".value]
@@ -214,31 +222,22 @@ struct Call[config: SymConfig, FuncT: Callable]:
     fn outs(self, idx: Int) -> Expr[config, FuncT]:
         return Expr[config, FuncT](self.graph, self[].outs[idx])
 
-    # fn args(self) -> ref [self[].args] StackList[Int]:
-    #     return self[].args
-
-    # fn args(self, idx: Int) -> Expr[config, AnyFunc]:
-    #     return Expr[config, AnyFunc](self.graph, self.args()[idx])
-
     fn write_to[W: Writer](self, mut writer: W):
         self.func.write_call(self, writer)
 
 
 @value
 struct ExprMem[config: SymConfig]:
-    var func_type: Int
-    var func_idx: Int
-    var out_idx: Int
+    var func_type: FuncTypeIdx
+    var call_idx: CallIdx
+    var out_idx: OutIdx
 
 
 @value
 @register_passable
 struct Expr[config: SymConfig, FuncT: Callable]:
     var graph: GraphRef[config]
-    var idx: Int
-
-    fn __repr__(self) -> String:
-        return "hello"
+    var idx: ExprIdx
 
     @implicit
     fn __init__[
@@ -248,20 +247,16 @@ struct Expr[config: SymConfig, FuncT: Callable]:
         self.graph = other.graph
         self.idx = other.idx
 
-    fn __getitem__(self) -> ExprMem[config]:
+    fn __getitem__(self) -> ref [self.graph[].exprs[self.idx]] ExprMem[config]:
         return self.graph[].exprs[self.idx]
 
     fn __getattr__[
         name: StringLiteral["call".value]
     ](self) -> Call[config, FuncT]:
-        return Call[config, FuncT](self.graph, self[].func_idx)
+        return Call[config, FuncT](self.graph, self[].call_idx)
 
-    fn __getattr__[
-        name: StringLiteral["args".value]
-    ](self) -> ref [
-        self.graph[].calls.ptr(self[].func_type, self[].func_idx)[].args
-    ] StackList[Int]:
-        return self.call.args
+    fn args(self, idx: Int) -> Expr[config, AnyFunc]:
+        return self.call.args(idx)
 
     fn write_to[W: Writer](self, mut writer: W):
         @parameter
@@ -278,29 +273,7 @@ struct Expr[config: SymConfig, FuncT: Callable]:
 
     fn view[FT: Callable](self) -> Expr[config, FT]:
         debug_assert(
-            config.callables.func_to_idx[FT]() == self[].func_type,
+            self[].func_type == config.callables.func_to_idx[FT](),
             "Function type mismatch",
         )
         return Expr[config, FT](self.graph, self.idx)
-
-    # @staticmethod
-    # fn is_known() -> Bool:
-    #     return not _type_is_eq[FuncT, AnyFunc]()
-
-
-#     var graph: GraphRef[config]
-#     var idx: ArgIdx
-
-#     fn __init__(out self, call: Call[config], idx: Int):
-#         self.graph = call.graph
-#         self.idx = ArgIdx(call.idx, idx)
-
-# fn call(self) -> Call[config]:
-#     return Call[config](self.graph, self.idx.call)
-
-#     fn args(self, idx: Int) -> Expr[config]:
-#         return Expr(self.graph, self.graph[].calls[self.idx.call].args[idx])
-
-
-#     fn __add__(self, other: Self) -> Self:
-#         return self.graph.add_call(Add(), self, other).outs(0)
