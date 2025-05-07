@@ -2,7 +2,7 @@ from memory import UnsafePointer
 from sys import sizeof
 from sys.intrinsics import _type_is_eq
 from os import abort
-from .expr import CallRef
+from .expr import Call
 from .sysconfig import SymConfig
 from utils import Variant
 from .utils import multihash
@@ -17,7 +17,7 @@ trait Callable(Movable & Copyable & Hashable):
 
     fn write_call[
         config: SymConfig, W: Writer
-    ](self, call: CallRef[config], mut writer: W):
+    ](self, call: Call[config], mut writer: W):
         ...
 
     fn __eq__(self, other: Self, out ret: Bool):
@@ -35,7 +35,7 @@ struct CallableVariant[config: SymConfig]:
     ]
     var _impl: Self._mlir_type
 
-    fn write_call[W: Writer](self, call: CallRef[config], mut writer: W):
+    fn write_call[W: Writer](self, call: Call[config], mut writer: W):
         @parameter
         for i in config.callables.range():
             if self.isa[config.callables.Ts[i]]():

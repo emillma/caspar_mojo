@@ -1,5 +1,4 @@
-from .callable import Callable, CallableVariant
-from .functions import Symbol, Add
+from .functions import Symbol, Add, Any, Callable
 from .expr import Expr, Call
 from stdlib.builtin.range import _SequentialRange
 from sys.intrinsics import _type_is_eq
