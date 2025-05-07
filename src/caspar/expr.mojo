@@ -5,10 +5,12 @@ from .functions import Symbol, Add
 
 
 struct GraphMem[config: SymConfig]:
+    # var call_sets: InlineArray[List[CallMem[config]], config.callables.size]
     var calls: List[CallMem[config]]
     var refcount: Int
 
     fn __init__(out self):
+        # self.call_sets = __type_of(self.call_sets)(fill=List[CallMem[config]]())
         self.calls = List[CallMem[config]]()
         self.refcount = 1
 

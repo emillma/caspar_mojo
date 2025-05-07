@@ -2,14 +2,30 @@ from .callable import Callable, CallableVariant
 from .functions import Symbol, Add
 from .expr import Expr, Call
 from stdlib.builtin.range import _SequentialRange
+from sys.intrinsics import _type_is_eq
 
 
 struct FuncCollection[*Ts: Callable]:
     alias vlist = VariadicList(Ts)
+    alias size = len(Self.vlist)
 
     @staticmethod
     fn range() -> _SequentialRange:
         return range(0, len(Self.vlist))
+
+    @staticmethod
+    fn func_range() -> _SequentialRange:
+        return range(0, len(Self.vlist))
+
+    @staticmethod
+    fn func_to_idx[T: Callable]() -> Int:
+        @parameter
+        for i in Self.func_range():
+
+            @parameter
+            if _type_is_eq[T, Self.Ts[i]]():
+                return i
+        return -1
 
     fn __init__(out self):
         ...
