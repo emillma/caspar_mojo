@@ -57,8 +57,8 @@ struct SymConfig[funcs: FuncCollection]:
 
 
 struct RunTime[config: SymConfig]:
-    alias Expr = Expr[Self.config, _]
-    alias Call = Call[Self.config, _]
+    alias Expr = Expr[_, Self.config]
+    alias Call = Call[_, Self.config]
     # from math import floor
 
     # alias floor = floor

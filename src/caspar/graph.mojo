@@ -1,10 +1,11 @@
+from .sysconfig import SymConfig
 from memory import UnsafePointer
-from sys import sizeof
-from .sysconfig import SymConfig, SymConfigDefault
-from .funcs import Callable, AnyFunc
-from .graph_utils import CallIdx, ExprIdx, OutIdx, FuncTypeIdx, StackList
+from . import funcs
+from .funcs import Callable, AnyFunc, StoreOne, StoreZero, StoreFloat
 from .expr import CallMem, ExprMem, Call, Expr, CasparElement
+from .graph_utils import CallIdx, ExprIdx, OutIdx, FuncTypeIdx, StackList
 from sys.intrinsics import _type_is_eq
+from sys import sizeof, alignof
 
 
 struct CallTable[config: SymConfig]:
@@ -22,7 +23,7 @@ struct CallTable[config: SymConfig]:
 
         @parameter
         for i in config.funcs.range():
-            alias CallT = CallMem[config, config.funcs.Ts[i]]
+            alias CallT = CallMem[config.funcs.Ts[i], config]
             self.ptrs[i] = UnsafePointer[CallT].alloc(init_size).bitcast[Byte]()
             self.counts.unsafe_ptr().offset(i).init_pointee_move(0)
             self.capacities.unsafe_ptr().offset(i).init_pointee_move(init_size)
@@ -31,7 +32,7 @@ struct CallTable[config: SymConfig]:
     fn __del__(owned self):
         @parameter
         for i in config.funcs.range():
-            alias CallT = CallMem[config, config.funcs.Ts[i]]
+            alias CallT = CallMem[config.funcs.Ts[i], config]
             for j in range(self.counts[i]):
                 self.ptrs[i].bitcast[CallT]().destroy_pointee()
             self.ptrs[i].free()
@@ -39,21 +40,21 @@ struct CallTable[config: SymConfig]:
     fn ptr[
         FT: Callable
     ](mut self, idx: CallIdx) -> UnsafePointer[
-        CallMem[config, FT], origin = __origin_of(self.ptrs)
+        CallMem[FT, config], origin = __origin_of(self.ptrs)
     ]:
         alias call_idx = Self.call_idx[FT]()
-        return self.ptrs[call_idx].bitcast[CallMem[config, FT]]().offset(idx)
+        return self.ptrs[call_idx].bitcast[CallMem[FT, config]]().offset(idx)
 
     fn ptr(
         mut self, func_type: FuncTypeIdx, idx: CallIdx
-    ) -> UnsafePointer[CallMem[config, AnyFunc], origin = __origin_of(self.ptrs)]:
+    ) -> UnsafePointer[CallMem[AnyFunc, config], origin = __origin_of(self.ptrs)]:
         return (
             self.ptrs[func_type]
             .offset(Int(idx) * self.strides[func_type])
-            .bitcast[CallMem[config, AnyFunc]]()
+            .bitcast[CallMem[AnyFunc, config]]()
         )
 
-    fn add[FT: Callable](mut self, owned call_mem: CallMem[config, FT]):
+    fn add[FT: Callable](mut self, owned call_mem: CallMem[FT, config]):
         alias call_idx = Self.call_idx[FT]()
         debug_assert(
             self.counts[call_idx] < self.capacities[call_idx],
@@ -126,7 +127,7 @@ struct GraphRef[config: SymConfig]:
     fn add_call[
         FT: Callable,
         *ArgTs: CasparElement,
-    ](self, owned func: FT, owned *args: *ArgTs) -> Call[config, FT]:
+    ](self, owned func: FT, owned *args: *ArgTs) -> Call[FT, config]:
         var arglist = StackList[ExprIdx](capacity=len(args))
 
         @parameter
@@ -146,11 +147,11 @@ struct GraphRef[config: SymConfig]:
                 )
             )
 
-        self[].calls.add[FT](CallMem[config, FT](arglist, outlist, func))
+        self[].calls.add[FT](CallMem[FT, config](arglist, outlist, func))
 
-        return Call[config, FT](self, self[].calls.count[FT]() - 1)
+        return Call[FT, config](self, self[].calls.count[FT]() - 1)
 
-    fn add_float(self, value: Floatable) -> Expr[config, AnyFunc]:
+    fn add_float(self, value: Floatable) -> Expr[AnyFunc, config]:
         var fval = value.__float__()
         if fval == 0:
             return self.add_call(funcs.StoreZero())[0]

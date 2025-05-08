@@ -1,7 +1,8 @@
 from caspar.funcs import Symbol, Add, AnyFunc, Callable
 from caspar.graph import GraphRef
 from caspar.expr import Expr, Call, Value
-from caspar.storage import Storage
+
+# from caspar.storage import Storage
 from sys import sizeof, alignof
 
 # from caspar.expr import Expr, GraphRef
@@ -12,7 +13,7 @@ fn main():
     var graph = GraphRef[SymConfigDefault](initialize=True)
     # var a = FuncTypeIdx(2)
     print()
-    var foo = Storage[Expr[SymConfigDefault], 3](uninitialized=True)
+    # var foo = Storage[Expr[AnyFunc, SymConfigDefault], 3](uninitialized=True)
     # foo.init_unsafe(0, 3.3)
     var x = graph.add_call(Symbol("x"))
     var y = graph.add_call(Symbol("y"))

@@ -13,7 +13,7 @@ trait Callable(Movable & Copyable):
 
     fn write_call[
         config: SymConfig, W: Writer
-    ](self, call: Call[config], mut writer: W):
+    ](self, call: Call[_, config], mut writer: W):
         ...
 
 
@@ -27,7 +27,7 @@ struct Symbol(Callable):
     fn n_outs(self) -> Int:
         return 1
 
-    fn write_call[sys: SymConfig, W: Writer](self, call: Call[sys], mut writer: W):
+    fn write_call[sys: SymConfig, W: Writer](self, call: Call[_, sys], mut writer: W):
         writer.write(self.data)
 
 
@@ -39,7 +39,7 @@ struct Add(Callable):
     fn n_outs(self) -> Int:
         return 1
 
-    fn write_call[sys: SymConfig, W: Writer](self, call: Call[sys], mut writer: W):
+    fn write_call[sys: SymConfig, W: Writer](self, call: Call[_, sys], mut writer: W):
         writer.write(call.args(0), " + ", call.args(1))
 
 
@@ -51,7 +51,7 @@ struct Mul(Callable):
     fn n_outs(self) -> Int:
         return 1
 
-    fn write_call[sys: SymConfig, W: Writer](self, call: Call[sys], mut writer: W):
+    fn write_call[sys: SymConfig, W: Writer](self, call: Call[_, sys], mut writer: W):
         writer.write(call.args(0), " * ", call.args(1))
 
 
@@ -65,7 +65,7 @@ struct StoreFloat(Callable):
     fn n_outs(self) -> Int:
         return 1
 
-    fn write_call[sys: SymConfig, W: Writer](self, call: Call[sys], mut writer: W):
+    fn write_call[sys: SymConfig, W: Writer](self, call: Call[_, sys], mut writer: W):
         writer.write(self.data)
 
 
@@ -77,7 +77,7 @@ struct StoreOne(Callable):
     fn n_outs(self) -> Int:
         return 1
 
-    fn write_call[sys: SymConfig, W: Writer](self, call: Call[sys], mut writer: W):
+    fn write_call[sys: SymConfig, W: Writer](self, call: Call[_, sys], mut writer: W):
         writer.write("1")
 
 
@@ -89,7 +89,7 @@ struct StoreZero(Callable):
     fn n_outs(self) -> Int:
         return 1
 
-    fn write_call[sys: SymConfig, W: Writer](self, call: Call[sys], mut writer: W):
+    fn write_call[sys: SymConfig, W: Writer](self, call: Call[_, sys], mut writer: W):
         writer.write("0")
 
 
@@ -103,6 +103,6 @@ struct AnyFunc(Callable):
         debug_assert(False, "AnyFunc should not be used as a function type")
         return -1
 
-    fn write_call[sys: SymConfig, W: Writer](self, call: Call[sys], mut writer: W):
+    fn write_call[sys: SymConfig, W: Writer](self, call: Call[_, sys], mut writer: W):
         ...
         debug_assert(False, "AnyFunc should not be used as a function type")

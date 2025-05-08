@@ -7,14 +7,14 @@ from sys.intrinsics import _type_is_eq
 
 
 @value
-struct CallMem[config: SymConfig, FuncT: Callable]:
+struct CallMem[FuncT: Callable, config: SymConfig]:
     var args: StackList[ExprIdx]
     var outs: StackList[ExprIdx]
     var func: FuncT
 
 
 @register_passable
-struct Call[config: SymConfig, FuncT: Callable]:
+struct Call[FuncT: Callable, config: SymConfig]:
     var graph: GraphRef[config]
     var idx: CallIdx
 
@@ -24,20 +24,20 @@ struct Call[config: SymConfig, FuncT: Callable]:
 
     fn __getitem__(
         self,
-    ) -> ref [self.graph[].calls.ptr[FuncT](self.idx)[]] CallMem[config, FuncT]:
+    ) -> ref [self.graph[].calls.ptr[FuncT](self.idx)[]] CallMem[FuncT, config]:
         return self.graph[].calls.ptr[FuncT](self.idx)[]
 
-    fn args(self, idx: ExprIdx) -> Expr[config, AnyFunc]:
-        return Expr[config, AnyFunc](self.graph, self[].args[idx])
+    fn args(self, idx: ExprIdx) -> Expr[AnyFunc, config]:
+        return Expr[AnyFunc, config](self.graph, self[].args[idx])
 
     fn __getattr__[name: StringLiteral["func".value]](self) -> ref [self[].func] FuncT:
         return self[].func
 
-    fn __getitem__(self, idx: Int) -> Expr[config, FuncT]:
+    fn __getitem__(self, idx: Int) -> Expr[FuncT, config]:
         return self.outs(idx)
 
-    fn outs(self, idx: Int) -> Expr[config, FuncT]:
-        return Expr[config, FuncT](self.graph, self[].outs[idx])
+    fn outs(self, idx: Int) -> Expr[FuncT, config]:
+        return Expr[FuncT, config](self.graph, self[].outs[idx])
 
     fn write_to[W: Writer](self, mut writer: W):
         self.func.write_call(self, writer)
@@ -51,18 +51,18 @@ struct ExprMem[config: SymConfig]:
 
 
 trait CasparElement(Writable & Movable & Copyable):
-    fn as_expr(self, graph: GraphRef) -> Expr[graph.config, AnyFunc]:
+    fn as_expr(self, graph: GraphRef) -> Expr[AnyFunc, graph.config]:
         ...
 
 
 @value
 @register_passable
-struct Expr[config: SymConfig, FuncT: Callable = AnyFunc](CasparElement):
+struct Expr[FuncT: Callable, config: SymConfig](CasparElement):
     var graph: GraphRef[config]
     var idx: ExprIdx
 
     @implicit
-    fn __init__[FT: Callable](out self: Expr[config, AnyFunc], other: Expr[config, FT]):
+    fn __init__[FT: Callable](out self: Expr[AnyFunc, config], other: Expr[FT, config]):
         constrained[config.funcs.supports[FT](), "Type not supported"]()
         self.graph = other.graph
         self.idx = other.idx
@@ -70,10 +70,10 @@ struct Expr[config: SymConfig, FuncT: Callable = AnyFunc](CasparElement):
     fn __getitem__(self) -> ref [self.graph[].exprs[self.idx]] ExprMem[config]:
         return self.graph[].exprs[self.idx]
 
-    fn __getattr__[name: StringLiteral["call".value]](self) -> Call[config, FuncT]:
-        return Call[config, FuncT](self.graph, self[].call_idx)
+    fn __getattr__[name: StringLiteral["call".value]](self) -> Call[FuncT, config]:
+        return Call[FuncT, config](self.graph, self[].call_idx)
 
-    fn args(self, idx: Int) -> Expr[config, AnyFunc]:
+    fn args(self, idx: Int) -> Expr[AnyFunc, config]:
         return self.call.args(idx)
 
     fn write_to[W: Writer](self, mut writer: W):
@@ -89,17 +89,17 @@ struct Expr[config: SymConfig, FuncT: Callable = AnyFunc](CasparElement):
         else:
             self.call.write_to(writer)
 
-    fn view[FT: Callable](self) -> Expr[config, FT]:
+    fn view[FT: Callable](self) -> Expr[FT, config]:
         debug_assert(
             self[].func_type == config.funcs.func_to_idx[FT](),
             "Function type mismatch",
         )
-        return Expr[config, FT](self.graph, self.idx)
+        return Expr[FT, config](self.graph, self.idx)
 
-    fn as_expr(self, graph: GraphRef) -> Expr[graph.config, AnyFunc]:
+    fn as_expr(self, graph: GraphRef) -> Expr[AnyFunc, graph.config]:
         constrained[self.config == graph.config, "Graph mismatch"]()
         debug_assert(self.graph is graph, "Graph mismatch")
-        return rebind[Expr[graph.config, AnyFunc]](self)
+        return rebind[Expr[AnyFunc, graph.config]](self)
 
 
 @value
@@ -113,7 +113,7 @@ struct Value(CasparElement):
     fn write_to[W: Writer](self, mut writer: W):
         self.data.write_to(writer)
 
-    fn as_expr(self, graph: GraphRef) -> Expr[graph.config, AnyFunc]:
+    fn as_expr(self, graph: GraphRef) -> Expr[AnyFunc, graph.config]:
         if self.data == 0:
             return graph.add_call(StoreZero())[0]
         elif self.data == 1:
