@@ -1,7 +1,7 @@
 {
-    "editor.stickyScroll.defaultModel": "indentationModel"
+    "editor.stickyScroll.defaultModel": "indentationModel",
     // "mojo."
-    // "mojo.formatting.args": [
-    //     "--line-length=88",
-    // ],
+    "mojo.formatting.args": [
+        "--line-length=88",
+    ],
 }

@@ -1,32 +1,19 @@
 # from .accessor import Accessor
-from .expr import Expr
+from .expr import Expr, CasparElement
 from .sysconfig import SymConfig
 from memory import UnsafePointer
 
 
-trait CasparElement(Movable & Copyable & Writable):
-    fn __add__(self, other: Self) -> Self:
-        ...
-
-
 @value
 struct Storage[T: CasparElement, size: Int](Movable & Copyable):
-    # alias Data = __mlir_type[`!pop.array<`, size.value, `, `, T, `>`]
     var _array: __mlir_type[`!pop.array<`, size.value, `, `, T, `>`]
 
-    # fn __init__(out self, owned *args: T):
-    #     self.data = Self.Data(storage=args^)
-
     fn __init__(out self, *, uninitialized: Bool):
-        __mlir_op.`lit.ownership.mark_initialized`(
-            __get_mvalue_as_litref(self._array)
-        )
-        # self.data = Self.Data(uninitialized=uninitialized)
+        debug_assert(uninitialized, "Storage must be uninitialized")
+        __mlir_op.`lit.ownership.mark_initialized`(__get_mvalue_as_litref(self._array))
 
     fn __init__(out self, owned storage: VariadicListMem[T, _]):
-        __mlir_op.`lit.ownership.mark_initialized`(
-            __get_mvalue_as_litref(self._array)
-        )
+        __mlir_op.`lit.ownership.mark_initialized`(__get_mvalue_as_litref(self._array))
         for i in range(0, Self.size):
             self.init_unsafe(i, storage[i])
         __disable_del storage

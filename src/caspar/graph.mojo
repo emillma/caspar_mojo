@@ -1,15 +1,14 @@
 from memory import UnsafePointer
 from sys import sizeof
-from .sysconfig import SymConfig
-from .functions import Callable, AnyFunc
+from .sysconfig import SymConfig, SymConfigDefault
+from .funcs import Callable, AnyFunc
 from .graph_utils import CallIdx, ExprIdx, OutIdx, FuncTypeIdx, StackList
-from .expr import CallMem, ExprMem, Call, Expr
+from .expr import CallMem, ExprMem, Call, Expr, CasparElement
+from sys.intrinsics import _type_is_eq
 
 
-struct CallStorage[config: SymConfig]:
-    var ptrs: InlineArray[
-        UnsafePointer[Byte], config.n_funcs, run_destructors=True
-    ]
+struct CallTable[config: SymConfig]:
+    var ptrs: InlineArray[UnsafePointer[Byte], config.n_funcs, run_destructors=True]
     var counts: InlineArray[Int, config.n_funcs, run_destructors=True]
     var capacities: InlineArray[Int, config.n_funcs, run_destructors=True]
     var strides: InlineArray[Int, config.n_funcs, run_destructors=True]
@@ -27,9 +26,7 @@ struct CallStorage[config: SymConfig]:
             self.ptrs[i] = UnsafePointer[CallT].alloc(init_size).bitcast[Byte]()
             self.counts.unsafe_ptr().offset(i).init_pointee_move(0)
             self.capacities.unsafe_ptr().offset(i).init_pointee_move(init_size)
-            self.strides.unsafe_ptr().offset(i).init_pointee_move(
-                sizeof[CallT]()
-            )
+            self.strides.unsafe_ptr().offset(i).init_pointee_move(sizeof[CallT]())
 
     fn __del__(owned self):
         @parameter
@@ -49,9 +46,7 @@ struct CallStorage[config: SymConfig]:
 
     fn ptr(
         mut self, func_type: FuncTypeIdx, idx: CallIdx
-    ) -> UnsafePointer[
-        CallMem[config, AnyFunc], origin = __origin_of(self.ptrs)
-    ]:
+    ) -> UnsafePointer[CallMem[config, AnyFunc], origin = __origin_of(self.ptrs)]:
         return (
             self.ptrs[func_type]
             .offset(Int(idx) * self.strides[func_type])
@@ -82,12 +77,12 @@ struct CallStorage[config: SymConfig]:
 
 
 struct GraphMem[config: SymConfig]:
-    var calls: CallStorage[config]
+    var calls: CallTable[config]
     var exprs: List[ExprMem[config]]
     var refcount: Int
 
     fn __init__(out self):
-        self.calls = CallStorage[config]()
+        self.calls = CallTable[config]()
         self.exprs = List[ExprMem[config]]()
         self.refcount = 1
 
@@ -105,9 +100,7 @@ struct GraphRef[config: SymConfig]:
     var ptr: UnsafePointer[GraphMem[config]]
 
     fn __init__(out self, *, initialize: Bool):
-        debug_assert(
-            initialize, "GraphRef should be initialized with initialize=True"
-        )
+        debug_assert(initialize, "GraphRef should be initialized with initialize=True")
         self.ptr = UnsafePointer[GraphMem[config]].alloc(1)
         __get_address_as_uninit_lvalue(self.ptr.address) = GraphMem[config]()
 
@@ -123,17 +116,24 @@ struct GraphRef[config: SymConfig]:
             self.ptr.destroy_pointee()
             self.ptr.free()
 
-    fn __is__(self, other: Self) -> Bool:
-        return self.ptr == other.ptr
+    fn __is__(self, other: GraphRef) -> Bool:
+        @parameter
+        if not _type_is_eq[Self, __type_of(other)]():
+            return False
+        else:
+            return self.ptr == rebind[__type_of(self.ptr)](other.ptr)
 
     fn add_call[
         FT: Callable,
-    ](self, owned func: FT, owned *args: Expr[config, AnyFunc]) -> Call[
-        config, FT
-    ]:
+        *ArgTs: CasparElement,
+    ](self, owned func: FT, owned *args: *ArgTs) -> Call[config, FT]:
         var arglist = StackList[ExprIdx](capacity=len(args))
-        for arg in args:
-            arglist.append(arg[].idx)
+
+        @parameter
+        fn inner[idx: Int, T: CasparElement](arg: T):
+            arglist.append(arg.as_expr(self).idx)
+
+        args.each_idx[inner]()
 
         var outlist = StackList[ExprIdx](capacity=func.n_outs())
         for i in range(func.n_outs()):
@@ -149,3 +149,12 @@ struct GraphRef[config: SymConfig]:
         self[].calls.add[FT](CallMem[config, FT](arglist, outlist, func))
 
         return Call[config, FT](self, self[].calls.count[FT]() - 1)
+
+    fn add_float(self, value: Floatable) -> Expr[config, AnyFunc]:
+        var fval = value.__float__()
+        if fval == 0:
+            return self.add_call(funcs.StoreZero())[0]
+        elif fval == 1:
+            return self.add_call(funcs.StoreOne())[0]
+        else:
+            return self.add_call(funcs.StoreFloat(fval))[0]

@@ -1,7 +1,8 @@
 from .graph import GraphRef
 from .graph_utils import CallIdx, ExprIdx, OutIdx, FuncTypeIdx, StackList
 from .sysconfig import SymConfig
-from .functions import Callable, AnyFunc
+from .funcs import Callable, AnyFunc, StoreOne, StoreZero, StoreFloat
+
 from sys.intrinsics import _type_is_eq
 
 
@@ -29,9 +30,7 @@ struct Call[config: SymConfig, FuncT: Callable]:
     fn args(self, idx: ExprIdx) -> Expr[config, AnyFunc]:
         return Expr[config, AnyFunc](self.graph, self[].args[idx])
 
-    fn __getattr__[
-        name: StringLiteral["func".value]
-    ](self) -> ref [self[].func] FuncT:
+    fn __getattr__[name: StringLiteral["func".value]](self) -> ref [self[].func] FuncT:
         return self[].func
 
     fn __getitem__(self, idx: Int) -> Expr[config, FuncT]:
@@ -51,16 +50,19 @@ struct ExprMem[config: SymConfig]:
     var out_idx: OutIdx
 
 
+trait CasparElement(Writable & Movable & Copyable):
+    fn as_expr(self, graph: GraphRef) -> Expr[graph.config, AnyFunc]:
+        ...
+
+
 @value
 @register_passable
-struct Expr[config: SymConfig, FuncT: Callable]:
+struct Expr[config: SymConfig, FuncT: Callable = AnyFunc](CasparElement):
     var graph: GraphRef[config]
     var idx: ExprIdx
 
     @implicit
-    fn __init__[
-        FT: Callable
-    ](out self: Expr[config, AnyFunc], other: Expr[config, FT]):
+    fn __init__[FT: Callable](out self: Expr[config, AnyFunc], other: Expr[config, FT]):
         constrained[config.funcs.supports[FT](), "Type not supported"]()
         self.graph = other.graph
         self.idx = other.idx
@@ -68,9 +70,7 @@ struct Expr[config: SymConfig, FuncT: Callable]:
     fn __getitem__(self) -> ref [self.graph[].exprs[self.idx]] ExprMem[config]:
         return self.graph[].exprs[self.idx]
 
-    fn __getattr__[
-        name: StringLiteral["call".value]
-    ](self) -> Call[config, FuncT]:
+    fn __getattr__[name: StringLiteral["call".value]](self) -> Call[config, FuncT]:
         return Call[config, FuncT](self.graph, self[].call_idx)
 
     fn args(self, idx: Int) -> Expr[config, AnyFunc]:
@@ -95,3 +95,28 @@ struct Expr[config: SymConfig, FuncT: Callable]:
             "Function type mismatch",
         )
         return Expr[config, FT](self.graph, self.idx)
+
+    fn as_expr(self, graph: GraphRef) -> Expr[graph.config, AnyFunc]:
+        constrained[self.config == graph.config, "Graph mismatch"]()
+        debug_assert(self.graph is graph, "Graph mismatch")
+        return rebind[Expr[graph.config, AnyFunc]](self)
+
+
+@value
+struct Value(CasparElement):
+    var data: Float64
+
+    @implicit
+    fn __init__(out self, data: Floatable):
+        self.data = data.__float__()
+
+    fn write_to[W: Writer](self, mut writer: W):
+        self.data.write_to(writer)
+
+    fn as_expr(self, graph: GraphRef) -> Expr[graph.config, AnyFunc]:
+        if self.data == 0:
+            return graph.add_call(StoreZero())[0]
+        elif self.data == 1:
+            return graph.add_call(StoreOne())[0]
+        else:
+            return graph.add_call(StoreFloat(self.data[0]))[0]

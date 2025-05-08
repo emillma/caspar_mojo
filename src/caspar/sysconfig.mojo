@@ -1,11 +1,11 @@
-from .functions import Symbol, Add, Callable
+import .funcs
 from .expr import Expr, Call
 from stdlib.builtin.range import _SequentialRange
 from sys.intrinsics import _type_is_eq
 from os import abort
 
 
-struct FuncCollection[*Ts: Callable]:
+struct FuncCollection[*Ts: funcs.Callable]:
     alias vlist = VariadicList(Ts)
     alias size = len(Self.vlist)
 
@@ -18,7 +18,7 @@ struct FuncCollection[*Ts: Callable]:
         return range(0, len(Self.vlist))
 
     @staticmethod
-    fn func_to_idx[T: Callable]() -> Int:
+    fn func_to_idx[T: funcs.Callable]() -> Int:
         constrained[Self.supports[T](), "Type not supported"]()
 
         @parameter
@@ -31,7 +31,7 @@ struct FuncCollection[*Ts: Callable]:
         return -1
 
     @staticmethod
-    fn supports[T: Callable]() -> Bool:
+    fn supports[T: funcs.Callable]() -> Bool:
         @parameter
         for i in Self.func_range():
             if _type_is_eq[T, Self.Ts[i]]():
@@ -49,10 +49,16 @@ struct SymConfig[funcs: FuncCollection]:
     fn __init__(out self):
         ...
 
+    fn __eq__(self, other: SymConfig[_]) -> Bool:
+        @parameter
+        if not _type_is_eq[Self, __type_of(other)]():
+            return False
+        return True
 
-struct RunTime[sym_config: SymConfig]:
-    alias Expr = Expr[Self.sym_config]
-    alias Call = Call[Self.sym_config]
+
+struct RunTime[config: SymConfig]:
+    alias Expr = Expr[Self.config, _]
+    alias Call = Call[Self.config, _]
     # from math import floor
 
     # alias floor = floor
@@ -72,7 +78,14 @@ struct RunTime[sym_config: SymConfig]:
         ...
 
 
-alias FuncCollectionDefault = FuncCollection[Symbol, Add]()
+alias FuncCollectionDefault = FuncCollection[
+    funcs.Symbol,
+    funcs.Add,
+    funcs.Mul,
+    funcs.StoreFloat,
+    funcs.StoreOne,
+    funcs.StoreZero,
+]()
 alias SymConfigDefault = SymConfig[FuncCollectionDefault]()
 alias RunTimeDefault = RunTime[SymConfigDefault]()
 
