@@ -1,7 +1,6 @@
 # from .accessor import Accessor
 from .expr import Expr
 from .sysconfig import SymConfig
-from .utils import origin_cast
 from memory import UnsafePointer
 
 
@@ -19,11 +18,15 @@ struct Storage[T: CasparElement, size: Int](Movable & Copyable):
     #     self.data = Self.Data(storage=args^)
 
     fn __init__(out self, *, uninitialized: Bool):
-        __mlir_op.`lit.ownership.mark_initialized`(__get_mvalue_as_litref(self._array))
+        __mlir_op.`lit.ownership.mark_initialized`(
+            __get_mvalue_as_litref(self._array)
+        )
         # self.data = Self.Data(uninitialized=uninitialized)
 
     fn __init__(out self, owned storage: VariadicListMem[T, _]):
-        __mlir_op.`lit.ownership.mark_initialized`(__get_mvalue_as_litref(self._array))
+        __mlir_op.`lit.ownership.mark_initialized`(
+            __get_mvalue_as_litref(self._array)
+        )
         for i in range(0, Self.size):
             self.init_unsafe(i, storage[i])
         __disable_del storage

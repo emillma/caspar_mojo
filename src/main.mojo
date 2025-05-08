@@ -1,5 +1,6 @@
 from caspar.functions import Symbol, Add, AnyFunc
-from caspar.expr import GraphRef, Expr, Call
+from caspar.graph import GraphRef
+from caspar.expr import Expr, Call
 from sys import sizeof, alignof
 
 # from caspar.expr import Expr, GraphRef

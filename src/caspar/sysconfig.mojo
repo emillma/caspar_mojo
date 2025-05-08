@@ -42,7 +42,10 @@ struct FuncCollection[*Ts: Callable]:
         ...
 
 
-struct SymConfig[callables: FuncCollection]:
+@value
+struct SymConfig[funcs: FuncCollection]:
+    alias n_funcs = Self.funcs.size
+
     fn __init__(out self):
         ...
 
