@@ -36,6 +36,7 @@ struct FuncCollection[*Ts: funcs.Callable]:
         for i in Self.func_range():
             if _type_is_eq[T, Self.Ts[i]]():
                 return True
+        print("\n\n", T.fname, "\n\n")
         return False
 
     fn __init__(out self):
@@ -79,7 +80,8 @@ struct RunTime[config: SymConfig]:
 
 
 alias FuncCollectionDefault = FuncCollection[
-    funcs.Symbol,
+    funcs.ReadValue[1],
+    funcs.WriteValue[1],
     funcs.Add,
     funcs.Mul,
     funcs.StoreFloat,

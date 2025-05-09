@@ -2,7 +2,7 @@ from .sysconfig import SymConfig
 from memory import UnsafePointer
 from . import funcs
 from .funcs import Callable, AnyFunc, StoreOne, StoreZero, StoreFloat
-from .expr import CallMem, ExprMem, Call, Expr, CasparElement
+from .expr import Call, Expr, CasparElement
 from .graph_utils import CallIdx, ExprIdx, OutIdx, FuncTypeIdx, StackList
 from sys.intrinsics import _type_is_eq
 from sys import sizeof, alignof
@@ -96,6 +96,20 @@ struct GraphMem[config: SymConfig]:
         return self.refcount == 0
 
 
+@value
+struct ExprMem[config: SymConfig]:
+    var func_type: FuncTypeIdx
+    var call_idx: CallIdx
+    var out_idx: OutIdx
+
+
+@value
+struct CallMem[FuncT: Callable, config: SymConfig]:
+    var args: StackList[ExprIdx]
+    var outs: StackList[ExprIdx]
+    var func: FuncT
+
+
 @register_passable
 struct GraphRef[config: SymConfig]:
     var ptr: UnsafePointer[GraphMem[config]]
@@ -159,3 +173,15 @@ struct GraphRef[config: SymConfig]:
             return self.add_call(funcs.StoreOne())[0]
         else:
             return self.add_call(funcs.StoreFloat(fval))[0]
+
+    fn as_function(self, *args: Call[AnyFunc, config]) -> SymFunc[config]:
+        arglist = List[Call[AnyFunc, config]](capacity=len(args))
+        for i in range(len(args)):
+            arglist.append(args[i])
+        return SymFunc[config](self, arglist)
+
+
+@value
+struct SymFunc[config: SymConfig]:
+    var graph: GraphRef[config]
+    var args: List[Call[AnyFunc, config]]

@@ -1,4 +1,4 @@
-from .graph import GraphRef
+from .graph import GraphRef, CallMem, ExprMem
 from .graph_utils import CallIdx, ExprIdx, OutIdx, FuncTypeIdx, StackList
 from .sysconfig import SymConfig
 from .funcs import Callable, AnyFunc, StoreOne, StoreZero, StoreFloat
@@ -7,20 +7,16 @@ from sys.intrinsics import _type_is_eq
 
 
 @value
-struct CallMem[FuncT: Callable, config: SymConfig]:
-    var args: StackList[ExprIdx]
-    var outs: StackList[ExprIdx]
-    var func: FuncT
-
-
 @register_passable
 struct Call[FuncT: Callable, config: SymConfig]:
     var graph: GraphRef[config]
     var idx: CallIdx
 
-    fn __init__(out self, graph: GraphRef[config], idx: CallIdx):
-        self.graph = graph
-        self.idx = idx
+    @implicit
+    fn __init__[FT: Callable](out self: Call[AnyFunc, config], other: Call[FT, config]):
+        constrained[config.funcs.supports[FT](), "Type not supported"]()
+        self.graph = other.graph
+        self.idx = other.idx
 
     fn __getitem__(
         self,
@@ -43,13 +39,6 @@ struct Call[FuncT: Callable, config: SymConfig]:
         self.func.write_call(self, writer)
 
 
-@value
-struct ExprMem[config: SymConfig]:
-    var func_type: FuncTypeIdx
-    var call_idx: CallIdx
-    var out_idx: OutIdx
-
-
 trait CasparElement(Writable & Movable & Copyable):
     fn as_expr(self, graph: GraphRef) -> Expr[AnyFunc, graph.config]:
         ...
@@ -64,7 +53,6 @@ struct Expr[FuncT: Callable, config: SymConfig](CasparElement):
     @implicit
     fn __init__[FT: Callable](out self: Expr[AnyFunc, config], other: Expr[FT, config]):
         constrained[config.funcs.supports[FT](), "Type not supported"]()
-        debug_assert(self.graph is other.graph, "Graph mismatch")
         self.graph = other.graph
         self.idx = other.idx
 

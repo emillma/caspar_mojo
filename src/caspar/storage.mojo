@@ -8,15 +8,15 @@ from .sysconfig import SymConfig, SymConfigDefault
 from .funcs import AnyFunc
 
 
-trait Storable(Movable & Copyable):
+trait Storage(Movable & Copyable):
     alias elemT: Movable & Copyable
 
 
 @value
-struct ExprStorage[size: Int, config: SymConfig](Storable):
+struct ExprStorage[size: Int, config: SymConfig](Storage):
     alias elemT = Expr[AnyFunc, config]
-    var _array: __mlir_type[`!pop.array<`, size.value, `, `, Self.elemT, `>`]
     var graph: GraphRef[config]
+    var _array: __mlir_type[`!pop.array<`, size.value, `, `, Self.elemT, `>`]
 
     fn __init__[
         *Ts: CasparElement
