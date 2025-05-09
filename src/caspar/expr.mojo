@@ -64,6 +64,7 @@ struct Expr[FuncT: Callable, config: SymConfig](CasparElement):
     @implicit
     fn __init__[FT: Callable](out self: Expr[AnyFunc, config], other: Expr[FT, config]):
         constrained[config.funcs.supports[FT](), "Type not supported"]()
+        debug_assert(self.graph is other.graph, "Graph mismatch")
         self.graph = other.graph
         self.idx = other.idx
 
@@ -103,6 +104,7 @@ struct Expr[FuncT: Callable, config: SymConfig](CasparElement):
 
 
 @value
+@register_passable("trivial")
 struct Value(CasparElement):
     var data: Float64
 
