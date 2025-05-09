@@ -23,9 +23,22 @@ struct Index[T: StringLiteral](Indexer):
         return self.value == other.value
 
 
-alias CallIdx = Index["callmem"]
-alias ExprIdx = Index["exprmem"]
-alias OutIdx = Index["output"]
-alias FuncTypeIdx = Index["functype"]
+alias FuncTypeIdx = Index["FuncTypeIdx"]
+alias CallInstanceIdx = Index["CallInstanceIdx"]
+
+
+@value
+@register_passable("trivial")
+struct CallIdx:
+    var type: FuncTypeIdx
+    var instance: CallInstanceIdx
+
+    fn __init__(out self, type: FuncTypeIdx, instance: CallInstanceIdx):
+        self.type = type
+        self.instance = instance
+
+
+alias ExprIdx = Index["ExprIdx"]
+alias OutIdx = Index["OutIdx"]
 
 alias StackList = List

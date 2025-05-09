@@ -20,8 +20,8 @@ struct Call[FuncT: Callable, config: SymConfig]:
 
     fn __getitem__(
         self,
-    ) -> ref [self.graph[].calls.ptr[FuncT](self.idx)[]] CallMem[FuncT, config]:
-        return self.graph[].calls.ptr[FuncT](self.idx)[]
+    ) -> ref [self.graph[].calls.ptr(self.idx)[]] CallMem[FuncT, config]:
+        return self.graph[].calls.ptr(self.idx).bitcast[CallMem[FuncT, config]]()[]
 
     fn args(self, idx: ExprIdx) -> Expr[AnyFunc, config]:
         return Expr[AnyFunc, config](self.graph, self[].args[idx])
@@ -71,7 +71,7 @@ struct Expr[FuncT: Callable, config: SymConfig](CasparElement):
 
             @parameter
             for i in config.funcs.range():
-                if self[].func_type == i:
+                if self[].call_idx.type == i:
                     var view = self.view[config.funcs.Ts[i]]()
                     return view.call.func.write_call(view.call, writer)
 
@@ -80,7 +80,7 @@ struct Expr[FuncT: Callable, config: SymConfig](CasparElement):
 
     fn view[FT: Callable](self) -> Expr[FT, config]:
         debug_assert(
-            self[].func_type == config.funcs.func_to_idx[FT](),
+            self[].call_idx.type == config.funcs.func_to_idx[FT](),
             "Function type mismatch",
         )
         return Expr[FT, config](self.graph, self.idx)

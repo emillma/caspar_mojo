@@ -24,7 +24,7 @@ fn main():
 
     @parameter
     for i in range(len(symfunc.graph[].exprs)):
-        print(symfunc.graph[].exprs[i].func_type.__int__())
+        print(symfunc.graph[].exprs[i].call_idx.type.__int__())
 
         # print(symfunc.graph[].exprs[i].call().args(2).idx)
 

@@ -3,7 +3,7 @@ from memory import UnsafePointer
 from . import funcs
 from .funcs import Callable, AnyFunc, StoreOne, StoreZero, StoreFloat
 from .expr import Call, Expr, CasparElement
-from .graph_utils import CallIdx, ExprIdx, OutIdx, FuncTypeIdx, StackList
+from .graph_utils import CallIdx, ExprIdx, OutIdx, StackList, CallInstanceIdx
 from sys.intrinsics import _type_is_eq
 from sys import sizeof, alignof
 
@@ -39,42 +39,45 @@ struct CallTable[config: SymConfig]:
 
     fn ptr[
         FT: Callable
-    ](mut self, idx: CallIdx) -> UnsafePointer[
+    ](mut self, idx: CallInstanceIdx) -> UnsafePointer[
         CallMem[FT, config], origin = __origin_of(self.ptrs)
     ]:
-        alias call_idx = Self.call_idx[FT]()
-        return self.ptrs[call_idx].bitcast[CallMem[FT, config]]().offset(idx)
+        alias ftype_idx = Self.ftype_idx[FT]()
+        return self.ptrs[ftype_idx].bitcast[CallMem[FT, config]]().offset(idx)
 
     fn ptr(
-        mut self, func_type: FuncTypeIdx, idx: CallIdx
+        mut self, idx: CallIdx
     ) -> UnsafePointer[CallMem[AnyFunc, config], origin = __origin_of(self.ptrs)]:
         return (
-            self.ptrs[func_type]
-            .offset(Int(idx) * self.strides[func_type])
+            self.ptrs[idx.type]
+            .offset(Int(idx.instance) * self.strides[idx.type])
             .bitcast[CallMem[AnyFunc, config]]()
         )
 
     fn add[FT: Callable](mut self, owned call_mem: CallMem[FT, config]):
-        alias call_idx = Self.call_idx[FT]()
+        alias ftype_idx = Self.ftype_idx[FT]()
         debug_assert(
-            self.counts[call_idx] < self.capacities[call_idx],
+            self.counts[ftype_idx] < self.capacities[ftype_idx],
             "CallStorage is full for function type",
         )
-        self.ptr[FT](self.counts[call_idx]).init_pointee_copy(call_mem^)
-        self.counts[call_idx] += 1
+        self.ptr[FT](self.counts[ftype_idx]).init_pointee_copy(call_mem^)
+        self.counts[ftype_idx] += 1
 
     @staticmethod
-    @parameter
-    fn call_idx[FT: Callable]() -> Int:
+    fn call_idx[FT: Callable](idx: CallInstanceIdx) -> CallIdx:
+        return CallIdx(Self.ftype_idx[FT](), idx)
+
+    @staticmethod
+    fn ftype_idx[FT: Callable]() -> Int:
         return config.funcs.func_to_idx[FT]()
 
     fn count[FT: Callable](self) -> Int:
-        alias call_idx = Self.call_idx[FT]()
-        return self.counts[call_idx]
+        alias ftype_idx = Self.ftype_idx[FT]()
+        return self.counts[ftype_idx]
 
     fn capacity[FT: Callable](self) -> Int:
-        alias call_idx = Self.call_idx[FT]()
-        return self.capacities[call_idx]
+        alias ftype_idx = Self.ftype_idx[FT]()
+        return self.capacities[ftype_idx]
 
 
 struct GraphMem[config: SymConfig]:
@@ -98,7 +101,6 @@ struct GraphMem[config: SymConfig]:
 
 @value
 struct ExprMem[config: SymConfig]:
-    var func_type: FuncTypeIdx
     var call_idx: CallIdx
     var out_idx: OutIdx
 
@@ -151,19 +153,13 @@ struct GraphRef[config: SymConfig]:
         args.each_idx[inner]()
 
         var outlist = StackList[ExprIdx](capacity=func.n_outs())
+        var call_idx = self[].calls.call_idx[FT](self[].calls.count[FT]())
         for i in range(func.n_outs()):
             outlist.append(len(self[].exprs))
-            self[].exprs.append(
-                ExprMem[config](
-                    config.funcs.func_to_idx[FT](),
-                    self[].calls.count[FT](),
-                    i,
-                )
-            )
+            self[].exprs.append(ExprMem[config](call_idx, i))
 
         self[].calls.add[FT](CallMem[FT, config](arglist, outlist, func))
-
-        return Call[FT, config](self, self[].calls.count[FT]() - 1)
+        return Call[FT, config](self, call_idx)
 
     fn add_float(self, value: Floatable) -> Expr[AnyFunc, config]:
         var fval = value.__float__()
