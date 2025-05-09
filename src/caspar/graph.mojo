@@ -60,7 +60,7 @@ struct CallTable[config: SymConfig]:
             self.counts[ftype_idx] < self.capacities[ftype_idx],
             "CallStorage is full for function type",
         )
-        self.ptr[FT](self.counts[ftype_idx]).init_pointee_copy(call_mem^)
+        self.ptr[FT](self.counts[ftype_idx]).init_pointee_move(call_mem^)
         self.counts[ftype_idx] += 1
 
     @staticmethod
@@ -170,14 +170,14 @@ struct GraphRef[config: SymConfig]:
         else:
             return self.add_call(funcs.StoreFloat(fval))[0]
 
-    fn as_function(self, *args: Call[AnyFunc, config]) -> SymFunc[config]:
-        arglist = List[Call[AnyFunc, config]](capacity=len(args))
-        for i in range(len(args)):
-            arglist.append(args[i])
+    fn as_function(owned self, owned *args: Call[AnyFunc, config]) -> SymFunc[config]:
+        arglist = List[CallIdx](capacity=len(args))
+        for arg in args:
+            arglist.append(arg[].idx)
         return SymFunc[config](self, arglist)
 
 
 @value
 struct SymFunc[config: SymConfig]:
     var graph: GraphRef[config]
-    var args: List[Call[AnyFunc, config]]
+    var args: List[CallIdx]
