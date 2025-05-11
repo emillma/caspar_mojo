@@ -135,7 +135,7 @@ struct GraphRef[config: SymConfig]:
 
     fn __is__(self, other: GraphRef) -> Bool:
         @parameter
-        if not _type_is_eq[Self, __type_of(other)]():
+        if not self.config == other.config:
             return False
         else:
             return self.ptr == rebind[__type_of(self.ptr)](other.ptr)

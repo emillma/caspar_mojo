@@ -42,6 +42,19 @@ struct FuncCollection[*Ts: funcs.Callable]:
     fn __init__(out self):
         ...
 
+    fn __eq__(self, other: FuncCollection) -> Bool:
+        @parameter
+        if self.size != other.size:
+            return False
+
+        @parameter
+        for i in self.range():
+
+            @parameter
+            if not _type_is_eq[Self.Ts[i], other.Ts[i]]():
+                return False
+        return True
+
 
 @value
 struct SymConfig[funcs: FuncCollection]:
@@ -51,32 +64,7 @@ struct SymConfig[funcs: FuncCollection]:
         ...
 
     fn __eq__(self, other: SymConfig[_]) -> Bool:
-        @parameter
-        if not _type_is_eq[Self, __type_of(other)]():
-            return False
-        return True
-
-
-struct RunTime[config: SymConfig]:
-    alias Expr = Expr[_, Self.config]
-    alias Call = Call[_, Self.config]
-    # from math import floor
-
-    # alias floor = floor
-
-    @staticmethod
-    fn add(a: Self.Expr, b: Self.Expr) -> Self.Expr:
-        # print(Self.floor(3.3))
-        return Self.Call(Add(), List[Self.Expr](a, b))[0]
-
-    @staticmethod
-    fn add[
-        dtype: DType, size: Int
-    ](a: SIMD[dtype, size], b: SIMD[dtype, size]) -> SIMD[dtype, size]:
-        return a + b
-
-    fn __init__(out self):
-        ...
+        return self.funcs == other.funcs
 
 
 alias FuncCollectionDefault = FuncCollection[
@@ -89,7 +77,6 @@ alias FuncCollectionDefault = FuncCollection[
     funcs.StoreZero,
 ]()
 alias SymConfigDefault = SymConfig[FuncCollectionDefault]()
-alias RunTimeDefault = RunTime[SymConfigDefault]()
 
 
 struct RunConfig:
