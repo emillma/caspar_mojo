@@ -48,9 +48,9 @@ struct Call[FuncT: Callable, config: SymConfig, origin: ImmutableOrigin]:
 
 
 trait CasparElement(Writable & Movable & Copyable):
-    fn as_expr[
-        origin: ImmutableOrigin
-    ](self, ref [origin]graph: Graph) -> Expr[AnyFunc, graph.config, origin]:
+    fn as_expr(
+        self, mut graph: Graph
+    ) -> Expr[AnyFunc, graph.config, __origin_of(graph)]:
         ...
 
 
@@ -99,13 +99,10 @@ struct Expr[FuncT: Callable, config: SymConfig, origin: ImmutableOrigin](CasparE
         )
         return Expr[FT, config](self.graph, self.idx)
 
-    fn as_expr[
-        origin_other: ImmutableOrigin
-    ](self, ref [origin_other]graph: Graph) -> Expr[
-        AnyFunc, graph.config, origin_other
-    ]:
+    fn as_expr(
+        self, mut graph: Graph
+    ) -> Expr[AnyFunc, graph.config, __origin_of(graph)]:
         constrained[self.config == graph.config, "Graph mismatch"]()
         # TODO: transfer to other graph if necessary
-        # debug_assert(self.graph == Pointer(to=graph), "Graph mismatch"
 
-        return rebind[Expr[AnyFunc, graph.config, origin_other]](self)
+        return rebind[Expr[AnyFunc, graph.config, __origin_of(graph)]](self)

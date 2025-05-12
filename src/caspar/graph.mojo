@@ -91,15 +91,17 @@ struct CallTable[config: SymConfig]:
         return self.capacities[ftype_idx]
 
 
+struct MutKey:
+    fn __init__(out self):
+        ...
+
+
 struct MutLock:
     fn __init__(out self):
         ...
 
-    fn __moveinit__(out self, owned other: Self):
-        ...
-
-    fn __enter__(mut self) -> Int:
-        return 2
+    fn __enter__(mut self) -> MutKey:
+        return MutKey()
 
     fn __exit__(mut self):
         return
@@ -109,15 +111,13 @@ struct Graph[config: SymConfig]:
     alias LockToken = Int
     var calls: CallTable[config]
     var exprs: List[ExprMem[config]]
-    var refcount: Int
 
     fn __init__(out self):
         self.calls = CallTable[config]()
         self.exprs = List[ExprMem[config]]()
-        self.refcount = 1
 
     fn mut(
-        self, token: Self.LockToken
+        self, token: MutKey
     ) -> ref [MutableOrigin.cast_from[__origin_of(self)].result] Self:
         # TODO: add lock to ensure single mutability
         return UnsafePointer(to=self).origin_cast[
@@ -145,23 +145,23 @@ struct Graph[config: SymConfig]:
         FT: Callable,
         *ArgTs: CasparElement,
     ](self, owned func: FT, owned *args: *ArgTs) -> Call[FT, config, __origin_of(self)]:
-        var arglist = StackList[ExprIdx](capacity=len(args))
+        with MutLock() as key:
+            var arglist = StackList[ExprIdx](capacity=len(args))
 
-        @parameter
-        fn inner[idx: Int, T: CasparElement](arg: T):
-            arglist.append(arg.as_expr(self).idx)
+            @parameter
+            fn inner[idx: Int, T: CasparElement](arg: T):
+                arglist.append(arg.as_expr(self.mut(key)).idx)
 
-        args.each_idx[inner]()
-        var outlist = StackList[ExprIdx](capacity=func.n_outs())
-        var call_idx = self.calls.call_idx[FT](self.calls.count[FT]())
-        with MutLock() as token:
+            args.each_idx[inner]()
+            var outlist = StackList[ExprIdx](capacity=func.n_outs())
+            var call_idx = self.calls.call_idx[FT](self.calls.count[FT]())
             for i in range(func.n_outs()):
                 outlist.append(len(self.exprs))
-                self.mut(token).exprs.append(ExprMem[config](call_idx, i))
-            self.mut(token).calls.add_call[FT](
+                self.mut(key).exprs.append(ExprMem[config](call_idx, i))
+            self.mut(key).calls.add_call[FT](
                 CallMem[FT, config](arglist, outlist, func)
             )
-        return Call[FT, config, __origin_of(self)](Pointer(to=self), call_idx)
+            return Call[FT, config, __origin_of(self)](Pointer(to=self), call_idx)
 
 
 @value
