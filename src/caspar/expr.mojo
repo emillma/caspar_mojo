@@ -1,4 +1,4 @@
-from .graph import GraphRef, CallMem, ExprMem
+from .graph import Graph, CallMem, ExprMem
 from .graph_utils import CallIdx, ExprIdx, OutIdx, FuncTypeIdx, StackList
 from .sysconfig import SymConfig
 from .funcs import Callable, AnyFunc, StoreOne, StoreZero, StoreFloat
@@ -8,50 +8,62 @@ from sys.intrinsics import _type_is_eq
 
 @value
 @register_passable
-struct Call[FuncT: Callable, config: SymConfig]:
-    var graph: GraphRef[config]
+struct Call[FuncT: Callable, config: SymConfig, origin: ImmutableOrigin]:
+    var graph: Pointer[Graph[config], origin]
     var idx: CallIdx
 
     @implicit
-    fn __init__[FT: Callable](out self: Call[AnyFunc, config], other: Call[FT, config]):
+    fn __init__[
+        FT: Callable
+    ](out self: Call[AnyFunc, config, origin], other: Call[FT, config, origin]):
         constrained[config.funcs.supports[FT](), "Type not supported"]()
         self.graph = other.graph
         self.idx = other.idx
 
     fn __getitem__(
         self,
-    ) -> ref [self.graph[].calls.ptr(self.idx)[]] CallMem[FuncT, config]:
-        return self.graph[].calls.ptr(self.idx).bitcast[CallMem[FuncT, config]]()[]
+    ) -> ref [self.graph[].calls] CallMem[FuncT, config]:
+        return (
+            self.graph[]
+            .calls.ptr[self.FuncT](self.idx)
+            .bitcast[CallMem[FuncT, config]]()[]
+        )
 
-    fn args(self, idx: ExprIdx) -> Expr[AnyFunc, config]:
-        return Expr[AnyFunc, config](self.graph, self[].args[idx])
+    fn args(self, idx: ExprIdx) -> Expr[AnyFunc, config, origin]:
+        return Expr[AnyFunc, config, origin](self.graph, self[].args[idx])
 
     fn __getattr__[name: StringLiteral["func".value]](self) -> ref [self[].func] FuncT:
         return self[].func
 
-    fn __getitem__(self, idx: Int) -> Expr[FuncT, config]:
+    fn __getitem__(self, idx: Int) -> Expr[FuncT, config, origin]:
         return self.outs(idx)
 
-    fn outs(self, idx: Int) -> Expr[FuncT, config]:
-        return Expr[FuncT, config](self.graph, self[].outs[idx])
+    fn outs(self, idx: Int) -> Expr[FuncT, config, origin]:
+        return Expr[FuncT, config, origin](
+            self.graph, self.graph[].calls.get[FuncT](self.idx).outs[idx]
+        )
 
     fn write_to[W: Writer](self, mut writer: W):
         self.func.write_call(self, writer)
 
 
 trait CasparElement(Writable & Movable & Copyable):
-    fn as_expr(self, graph: GraphRef) -> Expr[AnyFunc, graph.config]:
+    fn as_expr[
+        origin: ImmutableOrigin
+    ](self, ref [origin]graph: Graph) -> Expr[AnyFunc, graph.config, origin]:
         ...
 
 
 @value
 @register_passable
-struct Expr[FuncT: Callable, config: SymConfig](CasparElement):
-    var graph: GraphRef[config]
+struct Expr[FuncT: Callable, config: SymConfig, origin: ImmutableOrigin](CasparElement):
+    var graph: Pointer[Graph[config], origin]
     var idx: ExprIdx
 
     @implicit
-    fn __init__[FT: Callable](out self: Expr[AnyFunc, config], other: Expr[FT, config]):
+    fn __init__[
+        FT: Callable
+    ](out self: Expr[AnyFunc, config, origin], other: Expr[FT, config, origin]):
         constrained[config.funcs.supports[FT](), "Type not supported"]()
         self.graph = other.graph
         self.idx = other.idx
@@ -59,10 +71,12 @@ struct Expr[FuncT: Callable, config: SymConfig](CasparElement):
     fn __getitem__(self) -> ref [self.graph[].exprs[self.idx]] ExprMem[config]:
         return self.graph[].exprs[self.idx]
 
-    fn __getattr__[name: StringLiteral["call".value]](self) -> Call[FuncT, config]:
-        return Call[FuncT, config](self.graph, self[].call_idx)
+    fn __getattr__[
+        name: StringLiteral["call".value]
+    ](self) -> Call[FuncT, config, origin]:
+        return Call[FuncT, config, origin](self.graph, self[].call_idx)
 
-    fn args(self, idx: Int) -> Expr[AnyFunc, config]:
+    fn args(self, idx: Int) -> Expr[AnyFunc, config, origin]:
         return self.call.args(idx)
 
     fn write_to[W: Writer](self, mut writer: W):
@@ -78,35 +92,20 @@ struct Expr[FuncT: Callable, config: SymConfig](CasparElement):
         else:
             self.call.write_to(writer)
 
-    fn view[FT: Callable](self) -> Expr[FT, config]:
+    fn view[FT: Callable](self) -> Expr[FT, config, origin]:
         debug_assert(
             self[].call_idx.type == config.funcs.func_to_idx[FT](),
             "Function type mismatch",
         )
         return Expr[FT, config](self.graph, self.idx)
 
-    fn as_expr(self, graph: GraphRef) -> Expr[AnyFunc, graph.config]:
+    fn as_expr[
+        origin_other: ImmutableOrigin
+    ](self, ref [origin_other]graph: Graph) -> Expr[
+        AnyFunc, graph.config, origin_other
+    ]:
         constrained[self.config == graph.config, "Graph mismatch"]()
-        debug_assert(self.graph is graph, "Graph mismatch")
-        return rebind[Expr[AnyFunc, graph.config]](self)
+        # TODO: transfer to other graph if necessary
+        # debug_assert(self.graph == Pointer(to=graph), "Graph mismatch"
 
-
-@value
-@register_passable("trivial")
-struct Value(CasparElement):
-    var data: Float64
-
-    @implicit
-    fn __init__(out self, data: Floatable):
-        self.data = data.__float__()
-
-    fn write_to[W: Writer](self, mut writer: W):
-        self.data.write_to(writer)
-
-    fn as_expr(self, graph: GraphRef) -> Expr[AnyFunc, graph.config]:
-        if self.data == 0:
-            return graph.add_call(StoreZero())[0]
-        elif self.data == 1:
-            return graph.add_call(StoreOne())[0]
-        else:
-            return graph.add_call(StoreFloat(self.data[0]))[0]
+        return rebind[Expr[AnyFunc, graph.config, origin_other]](self)

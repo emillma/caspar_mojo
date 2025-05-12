@@ -2,7 +2,7 @@
 from .expr import Expr, CasparElement
 from .sysconfig import SymConfig
 from memory import UnsafePointer
-from caspar.graph import GraphRef
+from caspar.graph import Graph
 
 from .sysconfig import SymConfig, SymConfigDefault
 from .funcs import AnyFunc
@@ -15,19 +15,19 @@ trait Storage(Movable & Copyable):
 @value
 struct ExprStorage[size: Int, config: SymConfig](Storage):
     alias elemT = Expr[AnyFunc, config]
-    var graph: GraphRef[config]
+    var graph: Graph[config]
     var _array: __mlir_type[`!pop.array<`, size.value, `, `, Self.elemT, `>`]
 
     fn __init__[
         *Ts: CasparElement
-    ](out self, graph: GraphRef[config], owned *args: *Ts,):
+    ](out self, graph: Graph[config], owned *args: *Ts,):
         self = Self(graph, args^)
 
     fn __init__[
         *Ts: CasparElement
     ](
         out self,
-        graph: GraphRef[config],
+        graph: Graph[config],
         owned args: VariadicPack[True, _, CasparElement, *Ts],
     ):
         constrained[Self.size == len(VariadicList(Ts)), "Invalid number of arguments"]()
