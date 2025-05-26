@@ -1,13 +1,14 @@
 from .expr import Call
 
 
+@fieldwise_init("implicit")
 @register_passable("trivial")
-struct Index[T: StringLiteral](Indexer):
+struct NamedIndex[T: StringLiteral](Indexer & Copyable):
     var value: Int
 
-    @implicit
-    fn __init__(out self, value: Int):
-        self.value = value
+    # @implicit
+    # fn __init__(out self, value: Int):
+    #     self.value = value
 
     @always_inline
     fn __index__(self) -> __mlir_type.index:
@@ -26,8 +27,10 @@ struct Index[T: StringLiteral](Indexer):
         return self.value == other.value
 
 
-alias FuncTypeIdx = Index["FuncTypeIdx"]
-alias CallInstanceIdx = Index["CallInstanceIdx"]
+alias FuncTypeIdx = NamedIndex["FuncTypeIdx"]
+alias CallInstanceIdx = NamedIndex["CallInstanceIdx"]
+alias ExprIdx = NamedIndex["ExprIdx"]
+alias OutIdx = NamedIndex["OutIdx"]
 
 
 @value
@@ -44,9 +47,6 @@ struct CallIdx:
         self.type = type
         self.instance = instance
 
-
-alias ExprIdx = Index["ExprIdx"]
-alias OutIdx = Index["OutIdx"]
 
 alias StackList = List
 

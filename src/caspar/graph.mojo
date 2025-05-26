@@ -141,6 +141,20 @@ struct Graph[config: SymConfig]:
         )
         return Expr[FT](Pointer(to=self), idx)
 
+    fn get_callmem[
+        FT: Callable, origin: ImmutableOrigin
+    ](self, call: Call[FT, config, origin]) -> ref [
+        self.calls.get[FT](call.idx)
+    ] CallMem[FT, config]:
+        return self.calls.get[FT](call.idx)
+
+    fn get_exprmem[
+        FT: Callable, origin: ImmutableOrigin
+    ](self, expr: Expr[FT, config, origin]) -> ref [self.exprs[expr.idx]] ExprMem[
+        config
+    ]:
+        return self.exprs[expr.idx]
+
     fn add_call[
         FT: Callable,
         *ArgTs: CasparElement,
@@ -152,7 +166,10 @@ struct Graph[config: SymConfig]:
             fn inner[idx: Int, T: CasparElement](arg: T):
                 arglist.append(arg.as_expr(self.mut(key)).idx)
 
-            args.each_idx[inner]()
+            @parameter
+            for i in range(len(VariadicList(ArgTs))):
+                arglist.append(args[i].as_expr(self.mut(key)).idx)
+
             var outlist = StackList[ExprIdx](capacity=func.n_outs())
             var call_idx = self.calls.call_idx[FT](self.calls.count[FT]())
             for i in range(func.n_outs()):

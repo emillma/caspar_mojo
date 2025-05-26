@@ -22,12 +22,8 @@ struct Call[FuncT: Callable, config: SymConfig, origin: ImmutableOrigin]:
 
     fn __getitem__(
         self,
-    ) -> ref [self.graph[].calls] CallMem[FuncT, config]:
-        return (
-            self.graph[]
-            .calls.ptr[self.FuncT](self.idx)
-            .bitcast[CallMem[FuncT, config]]()[]
-        )
+    ) -> ref [self.graph[].get_callmem(self)] CallMem[FuncT, config]:
+        return self.graph[].get_callmem(self)
 
     fn args(self, idx: ExprIdx) -> Expr[AnyFunc, config, origin]:
         return Expr[AnyFunc, config, origin](self.graph, self[].args[idx])
