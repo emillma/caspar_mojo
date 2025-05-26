@@ -23,7 +23,7 @@ struct Call[FuncT: Callable, config: SymConfig, origin: ImmutableOrigin]:
     fn __getitem__(
         self,
     ) -> ref [self.graph[].get_callmem(self)] CallMem[FuncT, config]:
-        return self.graph[].get_callmem(self)
+        return self.graph[].get_callmem[FuncT](self)
 
     fn args(self, idx: ExprIdx) -> Expr[AnyFunc, config, origin]:
         return Expr[AnyFunc, config, origin](self.graph, self[].args[idx])
@@ -64,8 +64,8 @@ struct Expr[FuncT: Callable, config: SymConfig, origin: ImmutableOrigin](CasparE
         self.graph = other.graph
         self.idx = other.idx
 
-    fn __getitem__(self) -> ref [self.graph[].exprs[self.idx]] ExprMem[config]:
-        return self.graph[].exprs[self.idx]
+    fn __getitem__(self) -> ref [self.graph[].get_exprmem(self)] ExprMem[config]:
+        return self.graph[].get_exprmem(self)
 
     fn __getattr__[
         name: StringLiteral["call".value]
