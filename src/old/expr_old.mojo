@@ -75,13 +75,13 @@ struct CallData[sys: SymConfig](Movable):
     alias static_out_size = 4
 
     var func: CallableVariant[sys]
-    var args: List[Expr[sys]]  # TODO: Use small-vector optimized collection
+    var args: List[Val[sys]]  # TODO: Use small-vector optimized collection
 
     @staticmethod
     fn __init__(
         out self: Self,
         owned func: CallableVariant[sys],
-        owned args: List[Expr[sys]],
+        owned args: List[Val[sys]],
     ):
         debug_assert(len(args) == func.n_args(), "Invalid number of arguments")
         self.args = args^
@@ -98,7 +98,7 @@ struct Call[sys: SymConfig]:
     fn __init__(
         out self,
         owned func: CallableVariant[sys],
-        owned args: List[Expr[sys]] = List[Expr[sys]](),
+        owned args: List[Val[sys]] = List[Val[sys]](),
     ):
         self._data = RcPointer(CallData[sys](func^, args^))
 
@@ -111,14 +111,14 @@ struct Call[sys: SymConfig]:
     fn func(self) -> ref [self._data[].func] CallableVariant[sys]:
         return self._data[].func
 
-    fn args(self) -> ref [self._data[].args] List[Expr[sys]]:
+    fn args(self) -> ref [self._data[].args] List[Val[sys]]:
         return self._data[].args
 
-    fn args(self, idx: Int) -> ref [self._data[].args] Expr[sys]:
+    fn args(self, idx: Int) -> ref [self._data[].args] Val[sys]:
         return self._data[].args[idx]
 
-    fn __getitem__(owned self, idx: Int) -> Expr[sys]:
-        return Expr[sys](self^, idx)
+    fn __getitem__(owned self, idx: Int) -> Val[sys]:
+        return Val[sys](self^, idx)
 
     fn write_to[W: Writer](self, mut writer: W):
         self.func().write_call(self, writer)
@@ -141,7 +141,7 @@ struct Call[sys: SymConfig]:
 
 
 @value
-struct Expr[sys: SymConfig](Movable & Copyable, Writable):
+struct Val[sys: SymConfig](Movable & Copyable, Writable):
     var call: Call[sys]
     var out_idx: Int
 

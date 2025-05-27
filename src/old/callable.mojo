@@ -2,7 +2,7 @@ from memory import UnsafePointer
 from sys import sizeof
 from sys.intrinsics import _type_is_eq
 from os import abort
-from .expr import Call
+from .val import Call
 from .sysconfig import SymConfig
 from utils import Variant
 from .utils import multihash

@@ -1,5 +1,5 @@
 # from .callable import Callable, CallableVariant
-from .expr import Call
+from .val import Call
 from .sysconfig import SymConfig
 from os import abort
 
@@ -10,7 +10,8 @@ trait Callable(Movable & Copyable):
     fn n_args(self) -> Int:
         ...
 
-    fn n_outs(self) -> Int:
+    @staticmethod
+    fn n_outs() -> Int:
         ...
 
     fn write_call[
@@ -32,7 +33,8 @@ struct ReadValue[size: Int](Callable, Accessor):
     fn n_args(self) -> Int:
         return 0
 
-    fn n_outs(self) -> Int:
+    @staticmethod
+    fn n_outs() -> Int:
         return size
 
     fn write_call[sys: SymConfig, W: Writer](self, call: Call[_, sys], mut writer: W):
@@ -47,7 +49,8 @@ struct WriteValue[size: Int](Callable, Accessor):
     fn n_args(self) -> Int:
         return size
 
-    fn n_outs(self) -> Int:
+    @staticmethod
+    fn n_outs() -> Int:
         return 0
 
     fn write_call[sys: SymConfig, W: Writer](self, call: Call[_, sys], mut writer: W):
@@ -66,7 +69,8 @@ struct Add(Callable):
     fn n_args(self) -> Int:
         return 2
 
-    fn n_outs(self) -> Int:
+    @staticmethod
+    fn n_outs() -> Int:
         return 1
 
     fn write_call[sys: SymConfig, W: Writer](self, call: Call[_, sys], mut writer: W):
@@ -80,7 +84,8 @@ struct Mul(Callable):
     fn n_args(self) -> Int:
         return 2
 
-    fn n_outs(self) -> Int:
+    @staticmethod
+    fn n_outs() -> Int:
         return 1
 
     fn write_call[sys: SymConfig, W: Writer](self, call: Call[_, sys], mut writer: W):
@@ -95,7 +100,8 @@ struct StoreFloat(Callable):
     fn n_args(self) -> Int:
         return 0
 
-    fn n_outs(self) -> Int:
+    @staticmethod
+    fn n_outs() -> Int:
         return 1
 
     fn write_call[sys: SymConfig, W: Writer](self, call: Call[_, sys], mut writer: W):
@@ -109,7 +115,8 @@ struct StoreOne(Callable):
     fn n_args(self) -> Int:
         return 0
 
-    fn n_outs(self) -> Int:
+    @staticmethod
+    fn n_outs() -> Int:
         return 1
 
     fn write_call[sys: SymConfig, W: Writer](self, call: Call[_, sys], mut writer: W):
@@ -123,7 +130,8 @@ struct StoreZero(Callable):
     fn n_args(self) -> Int:
         return 0
 
-    fn n_outs(self) -> Int:
+    @staticmethod
+    fn n_outs() -> Int:
         return 1
 
     fn write_call[sys: SymConfig, W: Writer](self, call: Call[_, sys], mut writer: W):
@@ -135,13 +143,13 @@ struct AnyFunc(Callable):
     alias fname = "AnyFunc"
 
     fn n_args(self) -> Int:
-        debug_assert(False, "AnyFunc should not be used as a function type")
+        constrained[False, "AnyFunc should not be used as a function type"]()
         return -1
 
-    fn n_outs(self) -> Int:
-        debug_assert(False, "AnyFunc should not be used as a function type")
-        return -1
+    @staticmethod
+    fn n_outs() -> Int:
+        constrained[False, "AnyFunc should not be used as a function type"]()
+        return 1
 
     fn write_call[sys: SymConfig, W: Writer](self, call: Call[_, sys], mut writer: W):
-        ...
-        debug_assert(False, "AnyFunc should not be used as a function type")
+        constrained[False, "AnyFunc should not be used as a function type"]()

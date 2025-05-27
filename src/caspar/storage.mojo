@@ -1,5 +1,5 @@
 # from .accessor import Accessor
-from .expr import Expr, CasparElement
+from .val import Val, CasparElement
 from .sysconfig import SymConfig
 from memory import UnsafePointer
 from caspar.graph import Graph
@@ -13,8 +13,8 @@ trait Storage(Movable & Copyable):
 
 
 @value
-struct ExprStorage[size: Int, config: SymConfig](Storage):
-    alias elemT = Expr[AnyFunc, config]
+struct ValStorage[size: Int, config: SymConfig](Storage):
+    alias elemT = Val[AnyFunc, config]
     var graph: Graph[config]
     var _array: __mlir_type[`!pop.array<`, size.value, `, `, Self.elemT, `>`]
 
@@ -36,7 +36,7 @@ struct ExprStorage[size: Int, config: SymConfig](Storage):
 
         @parameter
         fn inner[idx: Int, T: CasparElement](arg: T):
-            self.unsafe_ptr().offset(idx).init_pointee_move(arg.as_expr(self.graph))
+            self.unsafe_ptr().offset(idx).init_pointee_move(arg.as_val(self.graph))
 
         args.each_idx[inner]()
         __disable_del args

@@ -1,5 +1,5 @@
 import .funcs
-from .expr import Expr, Call
+from .val import Val, Call
 from stdlib.builtin.range import _SequentialRange
 from sys.intrinsics import _type_is_eq
 from os import abort

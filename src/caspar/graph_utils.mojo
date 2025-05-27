@@ -1,4 +1,8 @@
-from .expr import Call
+from .val import Call
+from memory import UnsafePointer
+from .sysconfig import SymConfig
+from .funcs import Callable, AnyFunc
+from .graph import Graph, CallMem, ValMem
 
 
 @fieldwise_init("implicit")
@@ -29,7 +33,7 @@ struct NamedIndex[T: StringLiteral](Indexer & Copyable):
 
 alias FuncTypeIdx = NamedIndex["FuncTypeIdx"]
 alias CallInstanceIdx = NamedIndex["CallInstanceIdx"]
-alias ExprIdx = NamedIndex["ExprIdx"]
+alias ValIdx = NamedIndex["ValIdx"]
 alias OutIdx = NamedIndex["OutIdx"]
 
 
@@ -38,14 +42,6 @@ alias OutIdx = NamedIndex["OutIdx"]
 struct CallIdx:
     var type: FuncTypeIdx
     var instance: CallInstanceIdx
-
-    @implicit
-    fn __init__(out self, other: Call):
-        self = other.idx
-
-    fn __init__(out self, type: FuncTypeIdx, instance: CallInstanceIdx):
-        self.type = type
-        self.instance = instance
 
 
 alias StackList = List
