@@ -11,21 +11,40 @@ from .graph_utils import (
     OutIdx,
     StackList,
 )
+from hashlib._hasher import _HashableWithHasher, _Hasher
 
 alias BytePtr = UnsafePointer[Byte]
 
 
-@value
-struct ValMem[config: SymConfig]:
+@fieldwise_init
+struct ValMem[config: SymConfig](Movable, _HashableWithHasher):
     var call_idx: CallIdx
     var out_idx: OutIdx
 
+    fn __moveinit__(out self, owned other: Self):
+        self.call_idx = other.call_idx
+        self.out_idx = other.out_idx
 
-@value
-struct CallMem[FuncT: Callable, config: SymConfig]:
+    fn __hash__[H: _Hasher](self, mut hasher: H):
+        hasher.update(self.call_idx)
+        hasher.update(self.out_idx)
+
+
+@fieldwise_init
+struct CallMem[FuncT: Callable, config: SymConfig](Movable, _HashableWithHasher):
     var args: StackList[ValIdx]
     var outs: StackList[ValIdx]
     var func: FuncT  # Important to keep this field last for AnyFunc compatibility
+
+    fn __moveinit__(out self, owned other: Self):
+        self.args = other.args^
+        self.outs = other.outs^
+        self.func = other.func^
+
+    fn __hash__[H: _Hasher](self, mut hasher: H):
+        hasher.update(self.func)
+        hasher.update(self.args)
+        # hasher.update(self.outs)
 
 
 struct GraphCore[config: SymConfig]:
@@ -36,14 +55,14 @@ struct GraphCore[config: SymConfig]:
 
     var val_ptr: UnsafePointer[ValMem[config]]
     var val_count: Int
+    var val_capacity: Int
 
     fn __init__(out self):
-        alias init_size = 100
-
         self.call_ptrs = __type_of(self.call_ptrs)(uninitialized=True)
         self.call_counts = __type_of(self.call_counts)(uninitialized=True)
         self.call_capacities = __type_of(self.call_capacities)(uninitialized=True)
         self.call_strides = __type_of(self.call_strides)(uninitialized=True)
+        alias init_size = 500
 
         @parameter
         for i in config.funcs.range():
@@ -55,6 +74,7 @@ struct GraphCore[config: SymConfig]:
 
         self.val_ptr = UnsafePointer[ValMem[config]].alloc(init_size)
         self.val_count = 0
+        self.val_capacity = init_size
 
     fn __del__(owned self):
         @parameter
@@ -79,6 +99,10 @@ struct GraphCore[config: SymConfig]:
         )
         ret = self.val_count
         self.val_count += 1
+        debug_assert(
+            self.val_count <= self.val_capacity,
+            "CallStorage is full for function type",
+        )
 
     fn callmem_any[
         origin: Origin, //, FT: Callable
@@ -111,9 +135,13 @@ struct GraphCore[config: SymConfig]:
         UnsafePointer(
             to=self.callmem[FT=FT](self.call_counts[ftype_idx])
         ).init_pointee_move(
-            CallMem[FT, config](args=args, outs=outs, func=func),
+            CallMem[FT, config](args=args^, outs=outs^, func=func),
         )
         self.call_counts[ftype_idx] += 1
+        debug_assert(
+            self.call_counts[ftype_idx] <= self.call_capacities[ftype_idx],
+            "CallStorage is full for function type",
+        )
 
     @staticmethod
     fn ftype_idx[FT: Callable]() -> Int:

@@ -3,16 +3,14 @@ from memory import UnsafePointer
 from .sysconfig import SymConfig
 from .funcs import Callable, AnyFunc
 from .graph import Graph, CallMem, ValMem
+from hashlib._hasher import _HashableWithHasher, _Hasher, default_hasher
+from sys.intrinsics import sizeof
 
 
 @fieldwise_init("implicit")
 @register_passable("trivial")
-struct NamedIndex[T: StringLiteral](Indexer & Copyable):
+struct NamedIndex[T: StringLiteral](Indexer, _HashableWithHasher, Hashable):
     var value: Int
-
-    # @implicit
-    # fn __init__(out self, value: Int):
-    #     self.value = value
 
     @always_inline
     fn __index__(self) -> __mlir_type.index:
@@ -30,6 +28,14 @@ struct NamedIndex[T: StringLiteral](Indexer & Copyable):
     fn __req__(self, other: Self) -> Bool:
         return self.value == other.value
 
+    fn __hash__[H: _Hasher](self, mut hasher: H):
+        hasher.update(self.value)
+
+    fn __hash__(self) -> UInt:
+        var hasher = default_hasher()
+        hasher.update(self.value)
+        return UInt(hasher^.finish())
+
 
 alias FuncTypeIdx = NamedIndex["FuncTypeIdx"]
 alias CallInstanceIdx = NamedIndex["CallInstanceIdx"]
@@ -39,81 +45,84 @@ alias OutIdx = NamedIndex["OutIdx"]
 
 @value
 @register_passable("trivial")
-struct CallIdx:
+struct CallIdx(_HashableWithHasher):
     var type: FuncTypeIdx
     var instance: CallInstanceIdx
 
+    fn __hash__[H: _Hasher](self, mut hasher: H):
+        hasher.update(self.type)
+        hasher.update(self.instance)
 
-alias StackList = List
 
+struct StackList[ElemT: _HashableWithHasher & Indexer, stack_size: Int = 4](
+    _HashableWithHasher
+):
+    var capacity: UInt32
+    var count: UInt32
+    var stack_data: InlineArray[ElemT, stack_size, run_destructors=False]
 
-struct CallTable[config: SymConfig]:
-    var ptrs: InlineArray[UnsafePointer[Byte], config.n_funcs, run_destructors=True]
-    var counts: InlineArray[Int, config.n_funcs, run_destructors=True]
-    var capacities: InlineArray[Int, config.n_funcs, run_destructors=True]
-    var strides: InlineArray[Int, config.n_funcs, run_destructors=True]
+    fn __init__(out self, capacity: Int):
+        __mlir_op.`lit.ownership.mark_initialized`(__get_mvalue_as_litref(self))
+        self.capacity = capacity
+        if self.is_heap():
+            self.set_ptr(UnsafePointer[ElemT].alloc(capacity))
+        self.count = 0
+        self.capacity = capacity
 
-    fn __init__(out self):
-        self.ptrs = __type_of(self.ptrs)(uninitialized=True)
-        self.counts = __type_of(self.counts)(uninitialized=True)
-        self.capacities = __type_of(self.capacities)(uninitialized=True)
-        self.strides = __type_of(self.strides)(uninitialized=True)
-        alias init_size = 100
+    fn __moveinit__(out self, owned other: Self):
+        debug_assert(
+            other.count == other.capacity,
+            "Cannot move a StackList with non-zero count",
+        )
+        if other.is_heap():
+            __mlir_op.`lit.ownership.mark_initialized`(__get_mvalue_as_litref(self))
+            self.set_ptr(other.ptr())
+        else:
+            self.stack_data = other.stack_data.copy()
+        self.count = other.count
+        self.capacity = other.capacity
 
-        @parameter
-        for i in config.funcs.range():
-            alias CallT = CallMem[config.funcs.Ts[i], config]
-            self.ptrs[i] = UnsafePointer[CallT].alloc(init_size).bitcast[Byte]()
-            self.counts.unsafe_ptr().offset(i).init_pointee_move(0)
-            self.capacities.unsafe_ptr().offset(i).init_pointee_move(init_size)
-            self.strides.unsafe_ptr().offset(i).init_pointee_move(sizeof[CallT]())
+    fn append(mut self, owned value: ElemT):
+        debug_assert(
+            self.count < self.capacity,
+            "Cannot append to a StackList with full capacity",
+        )
+        self.ptr().offset(self.count).init_pointee_move(value^)
+        self.count += 1
+
+    fn is_heap(self) -> Bool:
+        return self.capacity > stack_size
+
+    fn ptr(self) -> UnsafePointer[ElemT]:
+        if self.is_heap():
+            return self.stack_data.unsafe_ptr().bitcast[UnsafePointer[ElemT]]()[]
+        else:
+            return self.stack_data.unsafe_ptr()
+
+    fn set_ptr(mut self, owned ptr: UnsafePointer[ElemT]):
+        debug_assert(
+            self.is_heap(),
+            "Cannot set pointer for a StackList that is not heap-allocated",
+        )
+        self.stack_data.unsafe_ptr().bitcast[UnsafePointer[ElemT]]().init_pointee_move(
+            ptr
+        )
+
+    fn __getitem__[T: Indexer](self, idx: T) -> ref [self] ElemT:
+        debug_assert(Int(idx) < Int(self.count), "Index out of bounds for StackList")
+        return self.ptr().offset(idx)[]
 
     fn __del__(owned self):
-        @parameter
-        for i in config.funcs.range():
-            alias CallT = CallMem[config.funcs.Ts[i], config]
-            for j in range(self.counts[i]):
-                self.ptrs[i].bitcast[CallT]().destroy_pointee()
-            self.ptrs[i].free()
+        var ptr = self.ptr()
+        for i in range(self.count):
+            ptr.offset(i).destroy_pointee()
+        if self.is_heap():
+            ptr.free()
 
-    fn ptr[
-        FT: Callable
-    ](mut self, idx: CallInstanceIdx) -> UnsafePointer[
-        CallMem[FT, config], origin = __origin_of(self.ptrs)
-    ]:
-        alias ftype_idx = Self.ftype_idx[FT]()
-        return self.ptrs[ftype_idx].bitcast[CallMem[FT, config]]().offset(idx)
-
-    fn ptr(
-        mut self, idx: CallIdx
-    ) -> UnsafePointer[CallMem[AnyFunc, config], origin = __origin_of(self.ptrs)]:
-        return (
-            self.ptrs[idx.type]
-            .offset(Int(idx.instance) * self.strides[idx.type])
-            .bitcast[CallMem[AnyFunc, config]]()
+    fn __hash__[H: _Hasher](self, mut hasher: H):
+        hasher.update(self.capacity)
+        hasher.update(self.count)
+        hasher._update_with_bytes(
+            self.ptr().bitcast[UInt8](),
+            Int(self.count) * sizeof[ElemT](),
         )
-
-    fn add[FT: Callable](mut self, owned call_mem: CallMem[FT, config]):
-        alias ftype_idx = Self.ftype_idx[FT]()
-        debug_assert(
-            self.counts[ftype_idx] < self.capacities[ftype_idx],
-            "CallStorage is full for function type",
-        )
-        self.ptr[FT](self.counts[ftype_idx]).init_pointee_copy(call_mem^)
-        self.counts[ftype_idx] += 1
-
-    @staticmethod
-    fn call_idx[FT: Callable](idx: CallInstanceIdx) -> CallIdx:
-        return CallIdx(Self.ftype_idx[FT](), idx)
-
-    @staticmethod
-    fn ftype_idx[FT: Callable]() -> Int:
-        return config.funcs.func_to_idx[FT]()
-
-    fn count[FT: Callable](self) -> Int:
-        alias ftype_idx = Self.ftype_idx[FT]()
-        return self.counts[ftype_idx]
-
-    fn capacity[FT: Callable](self) -> Int:
-        alias ftype_idx = Self.ftype_idx[FT]()
-        return self.capacities[ftype_idx]

@@ -18,6 +18,8 @@ struct LockToken:
 
 
 struct Graph[config: SymConfig]:
+    """Exposed interface for the graph."""
+
     alias LockToken = Int
     var _core: GraphCore[config]
     var _locked: Bool
@@ -48,25 +50,6 @@ struct Graph[config: SymConfig]:
         ]()[] = 0
         __disable_del token
 
-    fn _add_call[
-        FT: Callable, *ArgTs: CasparElement, origin: ImmutableOrigin
-    ](
-        ref [origin]self,
-        owned func: FT,
-        owned args: VariadicPack[True, _, CasparElement, *ArgTs],
-        token: LockToken,
-        out ret: Call[FT, config, origin],
-    ):
-        var arglist = StackList[ValIdx](capacity=len(args))
-
-        @parameter
-        for i in range(len(VariadicList(ArgTs))):
-            arglist.append(args[i].as_val(self, token).idx)
-        ret = Call[FT, config, origin](
-            Pointer(to=self),
-            self._mut_core(token).callmem_add[FT](func, arglist),
-        )
-
     fn get_callmem[
         FT: Callable, origin: ImmutableOrigin
     ](ref [origin]self, call: Call[FT, config, origin]) -> ref [
@@ -90,5 +73,20 @@ struct Graph[config: SymConfig]:
         out ret: Call[FT, config, origin],
     ):
         var token = self._aquire()
-        ret = self._add_call(func, args^, token=token)
+        var arglist = StackList[ValIdx](capacity=len(args))
+
+        @parameter
+        for i in range(len(VariadicList(ArgTs))):
+            arglist.append(args[i].as_val(self, token).idx)
+
+        ret = Call[FT, config, origin](
+            Pointer(to=self),
+            self._mut_core(token).callmem_add[FT](func, arglist^),
+        )
         self._release(token^)
+
+    fn __is__[T: AnyType](self, other: T) -> Bool:
+        @parameter
+        if not _type_is_eq[Self, T]():
+            return False
+        return UnsafePointer(to=self) == UnsafePointer(to=rebind[Self](other))

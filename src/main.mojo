@@ -15,4 +15,6 @@ fn main():
     var read_x = graph.add_call(funcs.ReadValue[1]("x"))
     var read_y = graph.add_call(funcs.ReadValue[1]("y"))
     var z = graph.add_call(funcs.Add(), read_x[0], read_y[0])[0]
+    # print(graph.owns(z))
+    # print(graph2.owns(z))
     print(z)

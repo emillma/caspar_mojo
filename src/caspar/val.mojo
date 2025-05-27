@@ -96,7 +96,8 @@ struct Val[FuncT: Callable, config: SymConfig, origin: ImmutableOrigin](CasparEl
     fn as_val(
         self, graph: Graph, token: LockToken
     ) -> Val[AnyFunc, graph.config, __origin_of(graph)]:
-        constrained[self.config == graph.config, "Graph mismatch"]()
-        # TODO: transfer to other graph if necessary
-
-        return rebind[Val[AnyFunc, graph.config, __origin_of(graph)]](self)
+        if self.graph[] is graph:
+            return rebind[Val[AnyFunc, graph.config, __origin_of(graph)]](self)
+        else:
+            debug_assert(False, "Graph mismatch")
+            return rebind[Val[AnyFunc, graph.config, __origin_of(graph)]](self)

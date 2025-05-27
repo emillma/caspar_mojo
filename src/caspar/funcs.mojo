@@ -2,9 +2,10 @@
 from .val import Call
 from .sysconfig import SymConfig
 from os import abort
+from hashlib._hasher import _HashableWithHasher, _Hasher
 
 
-trait Callable(Movable & Copyable):
+trait Callable(Movable, Copyable, _HashableWithHasher):
     alias fname: String
 
     fn n_args(self) -> Int:
@@ -24,6 +25,16 @@ trait Accessor:
     alias ArgT: AnyTrivialRegType
 
 
+fn get_signature[H: _Hasher, *Ts: _HashableWithHasher](*args: *Ts) -> UInt64:
+    """Generates a signature string for the given arguments."""
+    var hasher = H()
+
+    @parameter
+    for i in range(len(VariadicList(Ts))):
+        hasher.update(args[i])
+    return hasher^.finish()
+
+
 @value
 struct ReadValue[size: Int](Callable, Accessor):
     alias fname = "ReadValue"
@@ -39,6 +50,11 @@ struct ReadValue[size: Int](Callable, Accessor):
 
     fn write_call[sys: SymConfig, W: Writer](self, call: Call[_, sys], mut writer: W):
         writer.write(self.name)
+
+    fn __hash__[H: _Hasher](self, mut hasher: H):
+        alias signature = get_signature[H](String(Self.fname), Self.size)
+        hasher.update(signature)
+        hasher.update(self.name)
 
 
 @value
@@ -61,6 +77,10 @@ struct WriteValue[size: Int](Callable, Accessor):
                 writer.write(", ")
         writer.write(")")
 
+    fn __hash__[H: _Hasher](self, mut hasher: H):
+        alias signature = get_signature[H](String(Self.fname), Self.size)
+        hasher.update(signature)
+
 
 @value
 struct Add(Callable):
@@ -76,6 +96,10 @@ struct Add(Callable):
     fn write_call[sys: SymConfig, W: Writer](self, call: Call[_, sys], mut writer: W):
         writer.write(call.args(0), " + ", call.args(1))
 
+    fn __hash__[H: _Hasher](self, mut hasher: H):
+        alias signature = get_signature[H](String(Self.fname))
+        hasher.update(signature)
+
 
 @value
 struct Mul(Callable):
@@ -90,6 +114,10 @@ struct Mul(Callable):
 
     fn write_call[sys: SymConfig, W: Writer](self, call: Call[_, sys], mut writer: W):
         writer.write(call.args(0), " * ", call.args(1))
+
+    fn __hash__[H: _Hasher](self, mut hasher: H):
+        alias signature = get_signature[H](String(Self.fname))
+        hasher.update(signature)
 
 
 @value
@@ -107,6 +135,11 @@ struct StoreFloat(Callable):
     fn write_call[sys: SymConfig, W: Writer](self, call: Call[_, sys], mut writer: W):
         writer.write(self.data)
 
+    fn __hash__[H: _Hasher](self, mut hasher: H):
+        alias signature = get_signature[H](String(Self.fname))
+        hasher.update(signature)
+        hasher.update(self.data)
+
 
 @value
 struct StoreOne(Callable):
@@ -121,6 +154,10 @@ struct StoreOne(Callable):
 
     fn write_call[sys: SymConfig, W: Writer](self, call: Call[_, sys], mut writer: W):
         writer.write("1")
+
+    fn __hash__[H: _Hasher](self, mut hasher: H):
+        alias signature = get_signature[H](String(Self.fname))
+        hasher.update(signature)
 
 
 @value
@@ -137,6 +174,10 @@ struct StoreZero(Callable):
     fn write_call[sys: SymConfig, W: Writer](self, call: Call[_, sys], mut writer: W):
         writer.write("0")
 
+    fn __hash__[H: _Hasher](self, mut hasher: H):
+        alias signature = get_signature[H](String(Self.fname))
+        hasher.update(signature)
+
 
 @value
 struct AnyFunc(Callable):
@@ -152,4 +193,7 @@ struct AnyFunc(Callable):
         return 1
 
     fn write_call[sys: SymConfig, W: Writer](self, call: Call[_, sys], mut writer: W):
+        constrained[False, "AnyFunc should not be used as a function type"]()
+
+    fn __hash__[H: _Hasher](self, mut hasher: H):
         constrained[False, "AnyFunc should not be used as a function type"]()
