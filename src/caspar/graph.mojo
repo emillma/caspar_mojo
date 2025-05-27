@@ -8,37 +8,64 @@ from .graph_core import GraphCore, CallMem, ValMem
 from sys.intrinsics import _type_is_eq
 from sys import sizeof, alignof
 from utils.lock import BlockingSpinLock
+from os.atomic import Atomic
 
 
-@fieldwise_init
-struct MutKey:
-    ...
-
-
-@fieldwise_init
-struct MutLock:
-    fn __enter__(mut self) -> MutKey:
-        return MutKey()
-
-    fn __exit__(mut self):
-        return
+@explicit_destroy
+struct LockToken:
+    fn __init__(out self, *, create: Bool):
+        pass
 
 
 struct Graph[config: SymConfig]:
     alias LockToken = Int
     var _core: GraphCore[config]
+    var _locked: Bool
 
     fn __init__(out self):
         self._core = GraphCore[config]()
+        self._locked = 0
 
     fn _mut_core(
-        self, token: MutKey
+        self, token: LockToken
     ) -> ref [MutableOrigin.cast_from[__origin_of(self._core)].result] GraphCore[
         config
     ]:
         return UnsafePointer(to=self._core).origin_cast[
             True, MutableOrigin.cast_from[__origin_of(self._core)].result
         ]()[]
+
+    fn _aquire(self) -> LockToken:
+        debug_assert(self._locked == 0, "Graph is already locked")
+        UnsafePointer(to=self._locked).origin_cast[
+            True, MutableOrigin.cast_from[__origin_of(self._locked)].result
+        ]()[] = 1
+        return LockToken(create=True)
+
+    fn _release(self, owned token: LockToken):
+        UnsafePointer(to=self._locked).origin_cast[
+            True, MutableOrigin.cast_from[__origin_of(self._locked)].result
+        ]()[] = 0
+        __disable_del token
+
+    fn _add_call[
+        FT: Callable, *ArgTs: CasparElement, origin: ImmutableOrigin
+    ](
+        ref [origin]self,
+        owned func: FT,
+        owned args: VariadicPack[True, _, CasparElement, *ArgTs],
+        token: LockToken,
+        out ret: Call[FT, config, origin],
+    ):
+        var arglist = StackList[ValIdx](capacity=len(args))
+
+        @parameter
+        for i in range(len(VariadicList(ArgTs))):
+            arglist.append(args[i].as_val(self, token).idx)
+        ret = Call[FT, config, origin](
+            Pointer(to=self),
+            self._mut_core(token).callmem_add[FT](func, arglist),
+        )
 
     fn get_callmem[
         FT: Callable, origin: ImmutableOrigin
@@ -60,15 +87,8 @@ struct Graph[config: SymConfig]:
         ref [origin]self,
         owned func: FT,
         owned *args: *ArgTs,
-    ) -> Call[
-        FT, config, origin
-    ]:
-        var arglist = StackList[ValIdx](capacity=len(args))
-
-        @parameter
-        for i in range(len(VariadicList(ArgTs))):
-            arglist.append(args[i].as_val(self).idx)
-        return Call[FT, config, origin](
-            Pointer(to=self),
-            self._mut_core(MutKey()).callmem_add[FT](func, arglist),
-        )
+        out ret: Call[FT, config, origin],
+    ):
+        var token = self._aquire()
+        ret = self._add_call(func, args^, token=token)
+        self._release(token^)

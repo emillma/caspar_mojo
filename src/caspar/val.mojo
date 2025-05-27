@@ -1,4 +1,4 @@
-from .graph import Graph, CallMem, ValMem
+from .graph import Graph, CallMem, ValMem, LockToken
 from .graph_utils import CallIdx, ValIdx, OutIdx, FuncTypeIdx, StackList
 from .sysconfig import SymConfig
 from .funcs import Callable, AnyFunc, StoreOne, StoreZero, StoreFloat
@@ -42,7 +42,9 @@ struct Call[FuncT: Callable, config: SymConfig, origin: ImmutableOrigin]:
 
 
 trait CasparElement(Writable & Movable & Copyable):
-    fn as_val(self, graph: Graph) -> Val[AnyFunc, graph.config, __origin_of(graph)]:
+    fn as_val(
+        self, graph: Graph, token: LockToken
+    ) -> Val[AnyFunc, graph.config, __origin_of(graph)]:
         ...
 
 
@@ -91,7 +93,9 @@ struct Val[FuncT: Callable, config: SymConfig, origin: ImmutableOrigin](CasparEl
         )
         return Val[FT, config](self.graph, self.idx)
 
-    fn as_val(self, graph: Graph) -> Val[AnyFunc, graph.config, __origin_of(graph)]:
+    fn as_val(
+        self, graph: Graph, token: LockToken
+    ) -> Val[AnyFunc, graph.config, __origin_of(graph)]:
         constrained[self.config == graph.config, "Graph mismatch"]()
         # TODO: transfer to other graph if necessary
 
