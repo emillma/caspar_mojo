@@ -12,10 +12,10 @@ from caspar.sysconfig import SymConfigDefault
 
 fn main():
     var graph = Graph[SymConfigDefault]()
-    # var read_x = graph.add_call(funcs.ReadValue[1]("x"))
-    # var read_y = graph.add_call(funcs.ReadValue[1]("y"))
-    # var z = graph.add_call(funcs.Add(), read_x[0], read_y[0])[0]
-    # print(z)
+    var read_x = graph.add_call(funcs.ReadValue[1]("x"))
+    var read_y = graph.add_call(funcs.ReadValue[1]("y"))
+    var z = graph.add_call(funcs.Add(), read_x[0], read_y[0])[0]
+    print(z)
     # var store_z = graph.add_call(funcs.WriteValue[1](), z)
     # print("hello world")
     # var data = 1

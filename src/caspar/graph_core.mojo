@@ -68,25 +68,13 @@ struct GraphCore[config: SymConfig]:
             self.val_ptr.offset(v).destroy_pointee()
         self.val_ptr.free()
 
-    fn callptr[
-        origin: Origin, //,
-        FT: Callable,
-    ](ref [origin]self, idx: CallInstanceIdx) -> UnsafePointer[CallMem[FT, config]]:
-        alias ftype_idx = Self.ftype_idx[FT]()
-        return self.call_ptrs[ftype_idx].bitcast[CallMem[FT, config]]().offset(idx)
-
     fn valmem[
         origin: Origin
     ](ref [origin]self, idx: ValIdx) -> ref [self.val_ptr] ValMem[config]:
         return self.val_ptr.offset(idx)[]
 
-    fn valmem_init[
-        origin: Origin, //, FT: Callable
-    ](mut self, idx: ValIdx, owned val_mem: ValMem[config]):
-        UnsafePointer(to=self.valmem(idx)).init_pointee_move(val_mem^)
-
     fn valmem_add(mut self, call_idx: CallIdx, out_idx: OutIdx, out ret: ValIdx):
-        self.val_ptr.offset(self.val_count).init_pointee_move(
+        UnsafePointer(to=self.valmem(self.val_count)).init_pointee_move(
             ValMem[config](call_idx=call_idx, out_idx=out_idx)
         )
         ret = self.val_count
@@ -111,11 +99,6 @@ struct GraphCore[config: SymConfig]:
         alias ftype_idx = Self.ftype_idx[FT]()
         return self.call_ptrs[ftype_idx].bitcast[CallMem[FT, config]]().offset(idx)[]
 
-    fn callmem_init[
-        FT: Callable
-    ](mut self, idx: CallInstanceIdx, owned call_mem: CallMem[FT, config]):
-        UnsafePointer(to=self.callmem[FT=FT](idx)).init_pointee_move(call_mem^)
-
     fn callmem_add[
         FT: Callable
     ](mut self, owned func: FT, owned args: StackList[ValIdx], out ret: CallIdx):
@@ -125,25 +108,14 @@ struct GraphCore[config: SymConfig]:
         for i in range(FT.n_outs()):
             outs.append(self.valmem_add(ret, i))
 
-        self.callmem_init[FT](
-            self.call_counts[ftype_idx],
+        UnsafePointer(
+            to=self.callmem[FT=FT](self.call_counts[ftype_idx])
+        ).init_pointee_move(
             CallMem[FT, config](args=args, outs=outs, func=func),
         )
         self.call_counts[ftype_idx] += 1
 
     @staticmethod
-    fn call_idx[FT: Callable](idx: CallInstanceIdx) -> CallIdx:
-        return CallIdx(Self.ftype_idx[FT](), idx)
-
-    @staticmethod
     fn ftype_idx[FT: Callable]() -> Int:
         constrained[config.funcs.supports[FT](), "Type not supported"]()
         return config.funcs.func_to_idx[FT]()
-
-    fn count[FT: Callable](self) -> Int:
-        alias ftype_idx = Self.ftype_idx[FT]()
-        return self.call_counts[ftype_idx]
-
-    fn capacity[FT: Callable](self) -> Int:
-        alias ftype_idx = Self.ftype_idx[FT]()
-        return self.call_capacities[ftype_idx]

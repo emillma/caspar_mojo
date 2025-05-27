@@ -31,29 +31,14 @@ struct Graph[config: SymConfig]:
     fn __init__(out self):
         self._core = GraphCore[config]()
 
-    fn mut(
+    fn _mut_core(
         self, token: MutKey
-    ) -> ref [MutableOrigin.cast_from[__origin_of(self)].result] Self:
-        return UnsafePointer(to=self).origin_cast[
-            True, MutableOrigin.cast_from[__origin_of(self)].result
+    ) -> ref [MutableOrigin.cast_from[__origin_of(self._core)].result] GraphCore[
+        config
+    ]:
+        return UnsafePointer(to=self._core).origin_cast[
+            True, MutableOrigin.cast_from[__origin_of(self._core)].result
         ]()[]
-
-    # fn get_call[
-    #     FT: Callable = AnyFunc
-    # ](self, idx: CallIdx) -> Call[AnyFunc, config, __origin_of(self)]:
-    #     debug_assert(
-    #         config.funcs.func_to_idx[FT]() == Int(idx.type), "Type mismatch in get_call"
-    #     )
-    #     return Call[FT](Pointer[origin = __origin_of(self)](to=self), idx)
-
-    # fn get_val[
-    #     FT: Callable
-    # ](self, idx: ValIdx) -> Val[FT, config, __origin_of(self)]:
-    #     debug_assert(
-    #         config.funcs.func_to_idx[FT]() == Int(self.vals[idx].call_idx.type),
-    #         "Type mismatch in get_val",
-    #     )
-    #     return Val[FT](Pointer(to=self), idx)
 
     fn get_callmem[
         FT: Callable, origin: ImmutableOrigin
@@ -69,29 +54,21 @@ struct Graph[config: SymConfig]:
     ] ValMem[config]:
         return self._core.valmem(val.idx)
 
-    # fn add_call[
-    #     FT: Callable, *ArgTs: CasparElement, origin: ImmutableOrigin
-    # ](
-    #     ref [origin]self,
-    #     owned func: FT,
-    #     owned *args: *ArgTs,
-    # ) -> Call[
-    #     FT, config, origin
-    # ]:
-    #     var arglist = StackList[ValIdx](capacity=len(args))
+    fn add_call[
+        FT: Callable, *ArgTs: CasparElement, origin: ImmutableOrigin
+    ](
+        ref [origin]self,
+        owned func: FT,
+        owned *args: *ArgTs,
+    ) -> Call[
+        FT, config, origin
+    ]:
+        var arglist = StackList[ValIdx](capacity=len(args))
 
-    #     @parameter
-    #     for i in range(len(VariadicList(ArgTs))):
-    #         arglist.append(args[i].as_val(self).idx)
-
-    #     var outlist = StackList[ValIdx](capacity=func.n_outs())
-
-    #         for i in range(func.n_outs()):
-    #             outlist.append(len(self.vals))
-    #     with MutLock() as key:
-    #         var call_idx = self.mut(key).calls.add_call[FT](
-    #             CallMem[FT, config](arglist, outlist, func)
-    #         )
-    #         for i in range(func.n_outs()):
-    #             self.mut(key).vals.append(ValMem[config](call_idx, i))
-    #         return Call[FT, config, origin](Pointer(to=self), call_idx)
+        @parameter
+        for i in range(len(VariadicList(ArgTs))):
+            arglist.append(args[i].as_val(self).idx)
+        return Call[FT, config, origin](
+            Pointer(to=self),
+            self._mut_core(MutKey()).callmem_add[FT](func, arglist),
+        )
