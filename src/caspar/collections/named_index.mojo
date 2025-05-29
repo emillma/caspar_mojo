@@ -9,33 +9,43 @@ struct NamedIndex[T: StringLiteral](
     Movable,
     Copyable,
     Indexer,
-    EqualityComparable,
+    Comparable,
     _HashableWithHasher,
 ):
     var value: Int
 
-    @always_inline
     fn __index__(self) -> __mlir_type.index:
         return self.value.__index__()
 
-    @always_inline
     fn __int__(self) -> Int:
         return self.value
 
-    @always_inline
     fn __eq__(self, other: Self) -> Bool:
         return self.value == other.value
 
-    @always_inline
     fn __ne__(self, other: Self) -> Bool:
         return self.value == other.value
 
-    @always_inline
     fn __req__(self, other: Self) -> Bool:
         return self.value == other.value
 
     fn __hash__[H: _Hasher](self, mut hasher: H):
         hasher.update(self.value)
+
+    fn __lt__(self, other: Self) -> Bool:
+        return self.value < other.value
+
+    fn __gt__(self, other: Self) -> Bool:
+        return self.value > other.value
+
+    fn __le__(self, other: Self) -> Bool:
+        return self.value <= other.value
+
+    fn __ge__(self, other: Self) -> Bool:
+        return self.value >= other.value
+
+    fn __add__(self, other: Self) -> Self:
+        return Self(value=self.value + other.value)
 
 
 alias FuncTypeIdx = NamedIndex["FuncTypeIdx"]
@@ -76,7 +86,7 @@ struct IndexList[
     alias type = __mlir_type[`!pop.array<`, stack_size.value, `, `, ElemT, `>`]
     var stack_data: Self.type
 
-    fn __init__(out self, capacity: UInt32):
+    fn __init__(out self, owned capacity: UInt32):
         __mlir_op.`lit.ownership.mark_initialized`(__get_mvalue_as_litref(self))
         self.capacity = capacity
         self.count = 0
@@ -84,6 +94,8 @@ struct IndexList[
             self.set_ptr(UnsafePointer[ElemT].alloc(Int(capacity)))
 
     fn __moveinit__(out self, owned other: Self):
+        debug_assert(other.count == other.capacity, "Not finished")
+
         __mlir_op.`lit.ownership.mark_initialized`(
             __get_mvalue_as_litref(self.stack_data)
         )
@@ -97,6 +109,9 @@ struct IndexList[
                 other.stack_ptr().offset(i).move_pointee_into(
                     self.stack_ptr().offset(i)
                 )
+
+    fn __copyinit__(out self, other: Self):
+        self = other.copy()
 
     fn copy(out self: Self, other: Self):
         debug_assert(other.count == other.capacity, "Not finished")
@@ -116,20 +131,13 @@ struct IndexList[
     fn is_heap(self) -> Bool:
         return self.capacity > stack_size
 
-    fn stack_ptr(
-        ref self,
-    ) -> UnsafePointer[
-        type=ElemT,
-        mut = Origin(__origin_of(self)).mut,
-        origin = __origin_of(self),
-    ]:
+    fn stack_ptr[
+        origin: Origin
+    ](ref [origin]self) -> UnsafePointer[type=ElemT, mut = origin.mut, origin=origin]:
         return (
             UnsafePointer(to=self.stack_data)
             .bitcast[ElemT]()
-            .origin_cast[
-                mut = Origin(__origin_of(self)).mut,
-                origin = __origin_of(self),
-            ]()
+            .origin_cast[mut = origin.mut, origin=origin]()
         )
 
     fn ptr(self) -> UnsafePointer[ElemT]:

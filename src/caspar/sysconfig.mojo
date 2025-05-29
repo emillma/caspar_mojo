@@ -7,17 +7,25 @@ from utils import Variant
 from sys.info import sizeof
 
 
-struct FuncCollection[*Ts: funcs.Callable]:
+struct FuncCollection[*Ts: funcs.Callable](Sized):
     alias vlist = VariadicList(Ts)
-    alias size = len(Self.vlist)
+    var size: Int
 
     fn __init__(out self):
+        self.size = len(Self.vlist)
+
         @parameter
         for i in Self.range():
 
             @parameter
             for j in range(i):
-                constrained[Ts[i].info.fname != Ts[j].info.fname]()
+                constrained[
+                    Ts[i].info.fname != Ts[j].info.fname,
+                    "Duplicate function names: "
+                    + Ts[i].info.fname
+                    + " and "
+                    + Ts[j].info.fname,
+                ]()
 
     @staticmethod
     fn range() -> _SequentialRange:
@@ -51,7 +59,7 @@ struct FuncCollection[*Ts: funcs.Callable]:
 
     fn __eq__(self, other: FuncCollection) -> Bool:
         @parameter
-        if self.size != other.size:
+        if len(Self.vlist) != len(other.vlist):
             return False
 
         @parameter
@@ -62,10 +70,11 @@ struct FuncCollection[*Ts: funcs.Callable]:
                 return False
         return True
 
+    fn __len__(self) -> Int:
+        return self.size
+
 
 struct SymConfig[funcs: FuncCollection]:
-    alias n_funcs = Self.funcs.size
-
     fn __init__(out self):
         ...
 
@@ -76,8 +85,8 @@ struct SymConfig[funcs: FuncCollection]:
 alias FuncCollectionDefault = FuncCollection[
     funcs.ReadValue[1],
     funcs.WriteValue[1],
-    # funcs.ReadValue[2],
-    # funcs.WriteValue[2],
+    funcs.ReadValue[2],
+    funcs.WriteValue[2],
     # funcs.ReadValue[4],
     # funcs.WriteValue[4],
     funcs.Add,

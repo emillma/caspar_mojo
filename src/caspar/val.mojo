@@ -65,13 +65,11 @@ struct Val[FuncT: Callable, config: SymConfig, origin: ImmutableOrigin](CasparEl
     fn __getitem__(self) -> ref [self.graph[].get_valmem(self)] ValMem[config]:
         return self.graph[].get_valmem(self)
 
-    fn __getattr__[
-        name: StringLiteral["call".value]
-    ](self) -> Call[FuncT, config, origin]:
+    fn call(self) -> Call[FuncT, config, origin]:
         return Call[FuncT, config, origin](self.graph, self[].call_idx)
 
     fn args(self, idx: Int) -> Val[AnyFunc, config, origin]:
-        return self.call.args(idx)
+        return self.call().args(idx)
 
     fn write_to[W: Writer](self, mut writer: W):
         @parameter
@@ -81,10 +79,10 @@ struct Val[FuncT: Callable, config: SymConfig, origin: ImmutableOrigin](CasparEl
             for i in config.funcs.range():
                 if self[].call_idx.type == i:
                     var view = self.view[config.funcs.Ts[i]]()
-                    return view.call.func.write_call(view.call, writer)
+                    return view.call().func.write_call(view.call(), writer)
 
         else:
-            self.call.write_to(writer)
+            self.call().write_to(writer)
 
     fn view[FT: Callable](self) -> Val[FT, config, origin]:
         debug_assert(

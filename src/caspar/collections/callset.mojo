@@ -19,7 +19,7 @@ struct SearchResult:
     var index: Int
 
 
-struct CallSet[FuncT: Callable, config: SymConfig](Movable):
+struct CallSet[FuncT: Callable, config: SymConfig](Movable, Sized):
     alias CallT = CallMem[FuncT, config]
 
     var size: Int
@@ -43,8 +43,22 @@ struct CallSet[FuncT: Callable, config: SymConfig](Movable):
         __mlir_op.`lit.ownership.mark_initialized`(__get_mvalue_as_litref(self))
         UnsafePointer(to=self).bitcast[__type_of(other)]().init_pointee_move(other^)
 
-    fn _find_index(self, call: Self.CallT) -> SearchResult:
-        # Return (found, slot, index)
+    fn __getitem__(ref self, idx: CallInstanceIdx) -> ref [self.entries] Self.CallT:
+        debug_assert(-self.size <= Int(idx) < self.size, "Index out of bounds")
+        if idx >= 0:
+            return self.entries.offset(idx)[]
+        else:
+            return self.entries.offset(idx + self.size)[]
+
+    fn view[
+        FT: Callable
+    ](ref self: CallSet[AnyFunc, config]) -> ref [__origin_of(self)] CallSet[
+        FT, config
+    ]:
+        constrained[config.funcs.supports[FT](), "Type not supported"]()
+        return UnsafePointer(to=self).bitcast[CallSet[FT, config]]()[]
+
+    fn search(self, call: Self.CallT) -> SearchResult:
         var slot = call.hash & (self.capacity - 1)
         var perturb = call.hash
         while True:
@@ -64,17 +78,19 @@ struct CallSet[FuncT: Callable, config: SymConfig](Movable):
         perturb >>= PERTURB_SHIFT
         slot = ((5 * slot) + Int(perturb + 1)) & (self.capacity - 1)
 
-    fn add[unsafe: Bool = False](mut self, owned call: Self.CallT):
-        if (ret := self._find_index(call)).found:
-            pass
-        else:
+    # fn add[unsafe: Bool = False](mut self, owned call: Self.CallT):
 
-            @parameter
-            if not unsafe:
-                self._maybe_resize()
-            self.entries.offset(ret.index).init_pointee_move(call^)
-            self.index.set_index(Int(self.capacity), Int(ret.slot), Int(ret.index))
-            self.size += 1
+    fn insert[
+        unsafe: Bool = False
+    ](mut self, owned call: Self.CallT, idx: SearchResult):
+        debug_assert(not idx.found)
+
+        @parameter
+        if not unsafe:
+            self._maybe_resize()
+        self.entries.offset(idx.index).init_pointee_move(call^)
+        self.index.set_index(Int(self.capacity), Int(idx.slot), Int(idx.index))
+        self.size += 1
 
     fn _maybe_resize(self):
         if 3 * self.size >= 2 * self.capacity:

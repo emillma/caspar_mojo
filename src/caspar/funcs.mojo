@@ -50,7 +50,7 @@ trait Callable(Movable, Copyable, _HashableWithHasher, EqualityComparable):
 
 @value
 struct ReadValue[size: Int](Callable):
-    alias info = FuncInfo("ReadValue", 0, size)
+    alias info = FuncInfo("ReadValue" + String(size), 0, size)
     var name: String
 
     fn n_args(self) -> Int:

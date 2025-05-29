@@ -53,9 +53,9 @@ struct Graph[config: SymConfig]:
     fn get_callmem[
         FT: Callable, origin: ImmutableOrigin
     ](ref [origin]self, call: Call[FT, config, origin]) -> ref [
-        self._core.callmem_any[FT=FT](call.idx)
+        self._core.callmem_any[FT](call.idx)
     ] CallMem[FT, config]:
-        return self._core.callmem_any[FT=FT](call.idx)
+        return self._core.callmem_any[FT](call.idx)
 
     fn get_valmem[
         FT: Callable, origin: ImmutableOrigin
