@@ -9,6 +9,8 @@ from memory import UnsafePointer
 # from caspar.val import Val, GraphRef
 from caspar.sysconfig import SymConfigDefault
 
+# from caspar.collections import offsets
+
 
 fn main():
     var graph = Graph[SymConfigDefault]()

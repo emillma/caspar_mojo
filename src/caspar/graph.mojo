@@ -3,7 +3,7 @@ from memory import UnsafePointer
 from . import funcs
 from .funcs import Callable, AnyFunc, StoreOne, StoreZero, StoreFloat
 from .val import Call, Val, CasparElement
-from .graph_utils import CallIdx, ValIdx, OutIdx, StackList, CallInstanceIdx
+from .collections import CallIdx, ValIdx, OutIdx, IndexList, CallInstanceIdx
 from .graph_core import GraphCore, CallMem, ValMem
 from sys.intrinsics import _type_is_eq
 from sys import sizeof, alignof
@@ -73,7 +73,7 @@ struct Graph[config: SymConfig]:
         out ret: Call[FT, config, origin],
     ):
         var token = self._aquire()
-        var arglist = StackList[ValIdx](capacity=len(args))
+        var arglist = IndexList[ValIdx](capacity=len(args))
 
         @parameter
         for i in range(len(VariadicList(ArgTs))):

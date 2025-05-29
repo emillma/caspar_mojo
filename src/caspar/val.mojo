@@ -1,5 +1,5 @@
 from .graph import Graph, CallMem, ValMem, LockToken
-from .graph_utils import CallIdx, ValIdx, OutIdx, FuncTypeIdx, StackList
+from .collections import CallIdx, ValIdx, OutIdx, FuncTypeIdx, IndexList
 from .sysconfig import SymConfig
 from .funcs import Callable, AnyFunc, StoreOne, StoreZero, StoreFloat
 

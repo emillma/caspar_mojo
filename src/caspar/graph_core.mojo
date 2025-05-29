@@ -3,48 +3,90 @@ from memory import UnsafePointer
 from .sysconfig import SymConfig
 from .funcs import Callable, AnyFunc
 from sys.intrinsics import sizeof, _type_is_eq
-from .graph_utils import (
+from collections import Set
+from .collections import (
     FuncTypeIdx,
     CallInstanceIdx,
     CallIdx,
     ValIdx,
     OutIdx,
-    StackList,
+    IndexList,
 )
-from hashlib._hasher import _HashableWithHasher, _Hasher
+from collections import BitSet
+from hashlib._hasher import _HashableWithHasher, _Hasher, default_hasher
 
 alias BytePtr = UnsafePointer[Byte]
 
 
-@fieldwise_init
 struct ValMem[config: SymConfig](Movable, _HashableWithHasher):
     var call_idx: CallIdx
     var out_idx: OutIdx
+    var uses: Set[CallIdx]
 
-    fn __moveinit__(out self, owned other: Self):
-        self.call_idx = other.call_idx
-        self.out_idx = other.out_idx
+    fn __init__(out self, call_idx: CallIdx, out_idx: OutIdx):
+        self.call_idx = call_idx
+        self.out_idx = out_idx
+        self.uses = Set[CallIdx]()
 
     fn __hash__[H: _Hasher](self, mut hasher: H):
         hasher.update(self.call_idx)
         hasher.update(self.out_idx)
 
 
-@fieldwise_init
-struct CallMem[FuncT: Callable, config: SymConfig](Movable, _HashableWithHasher):
-    var args: StackList[ValIdx]
-    var outs: StackList[ValIdx]
+@value
+struct CallFlags:
+    var data: BitSet[1]
+    alias USED = 1
+
+    fn used(self) -> Bool:
+        return self.data.test(Self.USED)
+
+    fn set_used(mut self):
+        self.data.set(Self.USED)
+
+
+struct CallMem[FuncT: Callable, config: SymConfig](
+    Movable, ExplicitlyCopyable, _HashableWithHasher
+):
+    var args: IndexList[ValIdx]
+    var outs: IndexList[ValIdx]
+    var hash: UInt64
     var func: FuncT  # Important to keep this field last for AnyFunc compatibility
 
-    fn __moveinit__(out self, owned other: Self):
-        self.args = other.args^
-        self.outs = other.outs^
-        self.func = other.func^
+    fn __init__(
+        out self,
+        owned args: IndexList[ValIdx],
+        owned outs: IndexList[ValIdx],
+        owned func: FuncT,
+    ):
+        self.args = args^
+        self.outs = outs^
+        self.func = func^
+        self.hash = 0
+
+    fn copy(self, out ret: Self):
+        ret.args = self.args.copy()
+        ret.outs = self.outs.copy()
+        ret.func = self.func
+        ret.hash = self.hash
+        __mlir_op.`lit.ownership.mark_initialized`(__get_mvalue_as_litref(ret))
 
     fn __hash__[H: _Hasher](self, mut hasher: H):
         hasher.update(self.func)
         hasher.update(self.args)
-        # hasher.update(self.outs)
+
+    fn __eq__(self, other: Self) -> Bool:
+        constrained[config.funcs.supports[FuncT](), "Type not supported"]()
+        constrained[config == other.config, "Configurations do not match"]()
+        constrained[_type_is_eq[FuncT, other.FuncT](), "Function types do not match"]()
+        return (
+            self.hash == other.hash
+            and self.func == other.func
+            and self.args == other.args
+        )
+
+    fn __ne__(self, other: Self) -> Bool:
+        return not self.__eq__(other)
 
 
 struct GraphCore[config: SymConfig]:
@@ -125,11 +167,11 @@ struct GraphCore[config: SymConfig]:
 
     fn callmem_add[
         FT: Callable
-    ](mut self, owned func: FT, owned args: StackList[ValIdx], out ret: CallIdx):
+    ](mut self, owned func: FT, owned args: IndexList[ValIdx], out ret: CallIdx):
         alias ftype_idx = Self.ftype_idx[FT]()
         ret = CallIdx(ftype_idx, self.call_counts[ftype_idx])
-        var outs = StackList[ValIdx](capacity=FT.n_outs())
-        for i in range(FT.n_outs()):
+        var outs = IndexList[ValIdx](capacity=FT.info.n_outs)
+        for i in range(FT.info.n_outs):
             outs.append(self.valmem_add(ret, i))
 
         UnsafePointer(

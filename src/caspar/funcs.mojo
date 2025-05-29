@@ -2,18 +2,40 @@
 from .val import Call
 from .sysconfig import SymConfig
 from os import abort
-from hashlib._hasher import _HashableWithHasher, _Hasher
+from hashlib._hasher import _HashableWithHasher, _Hasher, default_hasher
 
 
-trait Callable(Movable, Copyable, _HashableWithHasher):
-    alias fname: String
+struct FuncInfo(EqualityComparable):
+    var fname: String
+    var n_args: Int
+    var n_outs: Int
+    var hash: UInt64
 
-    fn n_args(self) -> Int:
-        ...
+    fn __init__(out self, fname: String, n_args: Int, n_outs: Int):
+        self.fname = fname
+        self.n_args = n_args
+        self.n_outs = n_outs
 
-    @staticmethod
-    fn n_outs() -> Int:
-        ...
+        # var hasher = default_hasher()
+        # hasher.update(fname)
+        # hasher.update(n_args)
+        # hasher.update(n_outs)
+        # self.hash = hasher^.finish()
+        self.hash = 0
+
+    fn __eq__(self, other: Self) -> Bool:
+        return (
+            self.fname == other.fname
+            and self.n_args == other.n_args
+            and self.n_outs == other.n_outs
+        )
+
+    fn __ne__(self, other: Self) -> Bool:
+        return not self.__eq__(other)
+
+
+trait Callable(Movable, Copyable, _HashableWithHasher, EqualityComparable):
+    alias info: FuncInfo
 
     fn write_call[
         config: SymConfig, W: Writer
@@ -21,24 +43,9 @@ trait Callable(Movable, Copyable, _HashableWithHasher):
         ...
 
 
-trait Accessor:
-    alias ArgT: AnyTrivialRegType
-
-
-fn get_signature[H: _Hasher, *Ts: _HashableWithHasher](*args: *Ts) -> UInt64:
-    """Generates a signature string for the given arguments."""
-    var hasher = H()
-
-    @parameter
-    for i in range(len(VariadicList(Ts))):
-        hasher.update(args[i])
-    return hasher^.finish()
-
-
 @value
-struct ReadValue[size: Int](Callable, Accessor):
-    alias fname = "ReadValue"
-    alias ArgT = Float64
+struct ReadValue[size: Int](Callable):
+    alias info = FuncInfo("ReadValue", 0, size)
     var name: String
 
     fn n_args(self) -> Int:
@@ -52,15 +59,19 @@ struct ReadValue[size: Int](Callable, Accessor):
         writer.write(self.name)
 
     fn __hash__[H: _Hasher](self, mut hasher: H):
-        alias signature = get_signature[H](String(Self.fname), Self.size)
-        hasher.update(signature)
+        hasher.update(Self.info.hash)
         hasher.update(self.name)
+
+    fn __eq__(self, other: Self) -> Bool:
+        return self.name == other.name and self.size == other.size
+
+    fn __ne__(self, other: Self) -> Bool:
+        return not self.__eq__(other)
 
 
 @value
-struct WriteValue[size: Int](Callable, Accessor):
-    alias fname = "WriteValue"
-    alias ArgT = Float64
+struct WriteValue[size: Int](Callable):
+    alias info = FuncInfo("WriteValue", size, 0)
 
     fn n_args(self) -> Int:
         return size
@@ -78,13 +89,18 @@ struct WriteValue[size: Int](Callable, Accessor):
         writer.write(")")
 
     fn __hash__[H: _Hasher](self, mut hasher: H):
-        alias signature = get_signature[H](String(Self.fname), Self.size)
-        hasher.update(signature)
+        hasher.update(Self.info.hash)
+
+    fn __eq__(self, other: Self) -> Bool:
+        return self.size == other.size
+
+    fn __ne__(self, other: Self) -> Bool:
+        return not self.__eq__(other)
 
 
 @value
 struct Add(Callable):
-    alias fname = "Add"
+    alias info = FuncInfo("Add", 2, 1)
 
     fn n_args(self) -> Int:
         return 2
@@ -97,13 +113,18 @@ struct Add(Callable):
         writer.write(call.args(0), " + ", call.args(1))
 
     fn __hash__[H: _Hasher](self, mut hasher: H):
-        alias signature = get_signature[H](String(Self.fname))
-        hasher.update(signature)
+        hasher.update(Self.info.hash)
+
+    fn __eq__(self, other: Self) -> Bool:
+        return True  # Add is commutative, so all instances are equal
+
+    fn __ne__(self, other: Self) -> Bool:
+        return not self.__eq__(other)
 
 
 @value
 struct Mul(Callable):
-    alias fname = "Mul"
+    alias info = FuncInfo("Mul", -1, 1)
 
     fn n_args(self) -> Int:
         return 2
@@ -116,13 +137,18 @@ struct Mul(Callable):
         writer.write(call.args(0), " * ", call.args(1))
 
     fn __hash__[H: _Hasher](self, mut hasher: H):
-        alias signature = get_signature[H](String(Self.fname))
-        hasher.update(signature)
+        hasher.update(Self.info.hash)
+
+    fn __eq__(self, other: Self) -> Bool:
+        return True  # Add is commutative, so all instances are equal
+
+    fn __ne__(self, other: Self) -> Bool:
+        return not self.__eq__(other)
 
 
 @value
 struct StoreFloat(Callable):
-    alias fname = "StoreFloat"
+    alias info = FuncInfo("StoreFloat", 0, 1)
     var data: Float64
 
     fn n_args(self) -> Int:
@@ -136,14 +162,19 @@ struct StoreFloat(Callable):
         writer.write(self.data)
 
     fn __hash__[H: _Hasher](self, mut hasher: H):
-        alias signature = get_signature[H](String(Self.fname))
-        hasher.update(signature)
+        hasher.update(Self.info.hash)
         hasher.update(self.data)
+
+    fn __eq__(self, other: Self) -> Bool:
+        return True  # Add is commutative, so all instances are equal
+
+    fn __ne__(self, other: Self) -> Bool:
+        return not self.__eq__(other)
 
 
 @value
 struct StoreOne(Callable):
-    alias fname = "StoreOne"
+    alias info = FuncInfo("StoreOne", 0, 1)
 
     fn n_args(self) -> Int:
         return 0
@@ -156,13 +187,18 @@ struct StoreOne(Callable):
         writer.write("1")
 
     fn __hash__[H: _Hasher](self, mut hasher: H):
-        alias signature = get_signature[H](String(Self.fname))
-        hasher.update(signature)
+        hasher.update(Self.info.hash)
+
+    fn __eq__(self, other: Self) -> Bool:
+        return True  # Add is commutative, so all instances are equal
+
+    fn __ne__(self, other: Self) -> Bool:
+        return not self.__eq__(other)
 
 
 @value
 struct StoreZero(Callable):
-    alias fname = "StoreZero"
+    alias info = FuncInfo("StoreZero", 0, 1)
 
     fn n_args(self) -> Int:
         return 0
@@ -175,13 +211,18 @@ struct StoreZero(Callable):
         writer.write("0")
 
     fn __hash__[H: _Hasher](self, mut hasher: H):
-        alias signature = get_signature[H](String(Self.fname))
-        hasher.update(signature)
+        hasher.update(Self.info.hash)
+
+    fn __eq__(self, other: Self) -> Bool:
+        return True  # Add is commutative, so all instances are equal
+
+    fn __ne__(self, other: Self) -> Bool:
+        return not self.__eq__(other)
 
 
 @value
 struct AnyFunc(Callable):
-    alias fname = "AnyFunc"
+    alias info = FuncInfo("AnyFunc", -1, -1)
 
     fn n_args(self) -> Int:
         constrained[False, "AnyFunc should not be used as a function type"]()
@@ -197,3 +238,11 @@ struct AnyFunc(Callable):
 
     fn __hash__[H: _Hasher](self, mut hasher: H):
         constrained[False, "AnyFunc should not be used as a function type"]()
+
+    fn __eq__(self, other: Self) -> Bool:
+        constrained[False, "AnyFunc should not be used as a function type"]()
+        return True  # Add is commutative, so all instances are equal
+
+    fn __ne__(self, other: Self) -> Bool:
+        constrained[False, "AnyFunc should not be used as a function type"]()
+        return not self.__eq__(other)

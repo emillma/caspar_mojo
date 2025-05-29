@@ -3,6 +3,8 @@ from .val import Val, Call
 from stdlib.builtin.range import _SequentialRange
 from sys.intrinsics import _type_is_eq
 from os import abort
+from utils import Variant
+from sys.info import sizeof
 
 
 struct FuncCollection[*Ts: funcs.Callable]:
@@ -36,7 +38,7 @@ struct FuncCollection[*Ts: funcs.Callable]:
         for i in Self.func_range():
             if _type_is_eq[T, Self.Ts[i]]():
                 return True
-        print("\n\n", T.fname, "\n\n")
+        print("\n\n", T.info.fname, "\n\n")
         return False
 
     fn __init__(out self):
