@@ -11,6 +11,14 @@ struct FuncCollection[*Ts: funcs.Callable]:
     alias vlist = VariadicList(Ts)
     alias size = len(Self.vlist)
 
+    fn __init__(out self):
+        @parameter
+        for i in Self.range():
+
+            @parameter
+            for j in range(i):
+                constrained[Ts[i].info.fname != Ts[j].info.fname]()
+
     @staticmethod
     fn range() -> _SequentialRange:
         return range(0, len(Self.vlist))
@@ -41,9 +49,6 @@ struct FuncCollection[*Ts: funcs.Callable]:
         print("\n\n", T.info.fname, "\n\n")
         return False
 
-    fn __init__(out self):
-        ...
-
     fn __eq__(self, other: FuncCollection) -> Bool:
         @parameter
         if self.size != other.size:
@@ -58,7 +63,6 @@ struct FuncCollection[*Ts: funcs.Callable]:
         return True
 
 
-@value
 struct SymConfig[funcs: FuncCollection]:
     alias n_funcs = Self.funcs.size
 
@@ -72,12 +76,17 @@ struct SymConfig[funcs: FuncCollection]:
 alias FuncCollectionDefault = FuncCollection[
     funcs.ReadValue[1],
     funcs.WriteValue[1],
+    # funcs.ReadValue[2],
+    # funcs.WriteValue[2],
+    # funcs.ReadValue[4],
+    # funcs.WriteValue[4],
     funcs.Add,
     funcs.Mul,
     funcs.StoreFloat,
     funcs.StoreOne,
     funcs.StoreZero,
 ]()
+
 alias SymConfigDefault = SymConfig[FuncCollectionDefault]()
 
 

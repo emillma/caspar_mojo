@@ -14,6 +14,7 @@ from .collections import (
 )
 from collections import BitSet
 from hashlib._hasher import _HashableWithHasher, _Hasher, default_hasher
+from caspar.utils import hash
 
 alias BytePtr = UnsafePointer[Byte]
 
@@ -35,22 +36,32 @@ struct ValMem[config: SymConfig](Movable, _HashableWithHasher):
 
 @value
 struct CallFlags:
-    var data: BitSet[1]
-    alias USED = 1
+    var data: UInt8
+
+    fn __init__(out self):
+        self.data = 0
 
     fn used(self) -> Bool:
-        return self.data.test(Self.USED)
+        return self.get_flag[0]()
 
-    fn set_used(mut self):
-        self.data.set(Self.USED)
+    fn used(mut self, value: Bool):
+        return self.set_flag[0](True)
+
+    fn get_flag[idx: UInt](self) -> Bool:
+        return self.data & (1 << idx) != 0
+
+    fn set_flag[idx: UInt](mut self, value: Bool):
+        if value:
+            self.data |= 1 << idx
+        else:
+            self.data &= ~(1 << idx)
 
 
-struct CallMem[FuncT: Callable, config: SymConfig](
-    Movable, ExplicitlyCopyable, _HashableWithHasher
-):
+struct CallMem[FuncT: Callable, config: SymConfig](Movable, _HashableWithHasher):
     var args: IndexList[ValIdx]
     var outs: IndexList[ValIdx]
     var hash: UInt64
+    var flags: CallFlags
     var func: FuncT  # Important to keep this field last for AnyFunc compatibility
 
     fn __init__(
@@ -62,7 +73,8 @@ struct CallMem[FuncT: Callable, config: SymConfig](
         self.args = args^
         self.outs = outs^
         self.func = func^
-        self.hash = 0
+        self.flags = CallFlags()
+        self.hash = hash(self.func, self.args)
 
     fn copy(self, out ret: Self):
         ret.args = self.args.copy()
@@ -75,7 +87,7 @@ struct CallMem[FuncT: Callable, config: SymConfig](
         hasher.update(self.func)
         hasher.update(self.args)
 
-    fn __eq__(self, other: Self) -> Bool:
+    fn same_call(self, other: Self) -> Bool:
         constrained[config.funcs.supports[FuncT](), "Type not supported"]()
         constrained[config == other.config, "Configurations do not match"]()
         constrained[_type_is_eq[FuncT, other.FuncT](), "Function types do not match"]()
@@ -84,9 +96,6 @@ struct CallMem[FuncT: Callable, config: SymConfig](
             and self.func == other.func
             and self.args == other.args
         )
-
-    fn __ne__(self, other: Self) -> Bool:
-        return not self.__eq__(other)
 
 
 struct GraphCore[config: SymConfig]:

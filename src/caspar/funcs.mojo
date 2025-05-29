@@ -4,6 +4,8 @@ from .sysconfig import SymConfig
 from os import abort
 from hashlib._hasher import _HashableWithHasher, _Hasher, default_hasher
 
+# from caspar.utils import hash
+
 
 struct FuncInfo(EqualityComparable):
     var fname: String
@@ -16,12 +18,15 @@ struct FuncInfo(EqualityComparable):
         self.n_args = n_args
         self.n_outs = n_outs
 
-        # var hasher = default_hasher()
-        # hasher.update(fname)
-        # hasher.update(n_args)
-        # hasher.update(n_outs)
+        self.hash = hash(self.fname)
+        # hasher.update(self.n_args)
+        # hasher.update(self.n_outs)
         # self.hash = hasher^.finish()
-        self.hash = 0
+
+    # @parameter
+    # for i in range(len(VariadicList(Ts))):
+    # return hasher^.finish()
+    #     self.hash = hash(self.fname, self.n_args, self.n_outs)
 
     fn __eq__(self, other: Self) -> Bool:
         return (
@@ -71,7 +76,7 @@ struct ReadValue[size: Int](Callable):
 
 @value
 struct WriteValue[size: Int](Callable):
-    alias info = FuncInfo("WriteValue", size, 0)
+    alias info = FuncInfo("WriteValue" + String(size), size, 0)
 
     fn n_args(self) -> Int:
         return size

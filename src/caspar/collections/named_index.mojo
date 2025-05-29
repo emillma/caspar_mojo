@@ -69,7 +69,7 @@ struct CallIdx(KeyElement, _HashableWithHasher):
 struct IndexList[
     ElemT: _HashableWithHasher & EqualityComparable & Movable & Copyable,
     stack_size: Int = 4,
-](Movable, ExplicitlyCopyable, _HashableWithHasher):
+](Sized, Movable, ExplicitlyCopyable, _HashableWithHasher):
     var capacity: UInt32
     var count: UInt32
 
@@ -79,13 +79,11 @@ struct IndexList[
     fn __init__(out self, capacity: UInt32):
         __mlir_op.`lit.ownership.mark_initialized`(__get_mvalue_as_litref(self))
         self.capacity = capacity
+        self.count = 0
         if self.is_heap():
             self.set_ptr(UnsafePointer[ElemT].alloc(Int(capacity)))
-        self.count = 0
-        self.capacity = capacity
 
     fn __moveinit__(out self, owned other: Self):
-        debug_assert(other.count == other.capacity, "Not finished")
         __mlir_op.`lit.ownership.mark_initialized`(
             __get_mvalue_as_litref(self.stack_data)
         )
@@ -102,8 +100,9 @@ struct IndexList[
 
     fn copy(out self: Self, other: Self):
         debug_assert(other.count == other.capacity, "Not finished")
-        self = Self(capacity=Int(other.capacity))
-        for i in range(stack_size):
+
+        self = Self(capacity=other.capacity)
+        for i in range(len(self)):
             self.append(other[i])
 
     fn append(mut self, owned value: ElemT):
@@ -121,15 +120,15 @@ struct IndexList[
         ref self,
     ) -> UnsafePointer[
         type=ElemT,
-        mut = Origin(__origin_of(self.stack_data)).mut,
-        origin = __origin_of(self.stack_data),
+        mut = Origin(__origin_of(self)).mut,
+        origin = __origin_of(self),
     ]:
         return (
             UnsafePointer(to=self.stack_data)
             .bitcast[ElemT]()
             .origin_cast[
-                mut = Origin(__origin_of(self.stack_data)).mut,
-                origin = __origin_of(self.stack_data),
+                mut = Origin(__origin_of(self)).mut,
+                origin = __origin_of(self),
             ]()
         )
 
@@ -158,15 +157,13 @@ struct IndexList[
             ptr.free()
 
     fn __hash__[H: _Hasher](self, mut hasher: H):
-        hasher.update(self.capacity)
-        hasher.update(self.count)
         hasher._update_with_bytes(
             self.ptr().bitcast[UInt8](),
             Int(self.count) * sizeof[ElemT](),
         )
 
     fn __eq__(self, other: Self) -> Bool:
-        if self.count != other.count or self.capacity != other.capacity:
+        if self.count != other.count:
             return False
         for i in range(self.count):
             if self.ptr().offset(i)[] != other.ptr().offset(i)[]:
@@ -175,3 +172,6 @@ struct IndexList[
 
     fn __ne__(self, other: Self) -> Bool:
         return not self.__eq__(other)
+
+    fn __len__(self) -> Int:
+        return Int(self.count)
