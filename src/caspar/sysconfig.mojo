@@ -54,7 +54,6 @@ struct FuncCollection[*Ts: funcs.Callable](Sized):
         for i in Self.func_range():
             if _type_is_eq[T, Self.Ts[i]]():
                 return True
-        print("\n\n", T.info.fname, "\n\n")
         return False
 
     fn __eq__(self, other: FuncCollection) -> Bool:
@@ -83,6 +82,7 @@ struct SymConfig[funcs: FuncCollection]:
 
 
 alias FuncCollectionDefault = FuncCollection[
+    funcs.Symbol,
     funcs.ReadValue[1],
     funcs.WriteValue[1],
     funcs.ReadValue[2],

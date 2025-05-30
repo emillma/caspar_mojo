@@ -49,16 +49,9 @@ trait Callable(Movable, Copyable, _HashableWithHasher, EqualityComparable):
 
 
 @value
-struct ReadValue[size: Int](Callable):
-    alias info = FuncInfo("ReadValue" + String(size), 0, size)
+struct Symbol(Callable):
+    alias info = FuncInfo("Symbol", 0, 1)
     var name: String
-
-    fn n_args(self) -> Int:
-        return 0
-
-    @staticmethod
-    fn n_outs() -> Int:
-        return size
 
     fn write_call[sys: SymConfig, W: Writer](self, call: Call[_, sys], mut writer: W):
         writer.write(self.name)
@@ -68,7 +61,26 @@ struct ReadValue[size: Int](Callable):
         hasher.update(self.name)
 
     fn __eq__(self, other: Self) -> Bool:
-        return self.name == other.name and self.size == other.size
+        return self.name == other.name
+
+    fn __ne__(self, other: Self) -> Bool:
+        return not self.__eq__(other)
+
+
+@value
+struct ReadValue[size: Int](Callable):
+    alias info = FuncInfo("ReadValue" + String(size), 0, size)
+    var name: String
+
+    fn write_call[sys: SymConfig, W: Writer](self, call: Call[_, sys], mut writer: W):
+        writer.write(self.name)
+
+    fn __hash__[H: _Hasher](self, mut hasher: H):
+        hasher.update(Self.info.hash)
+        hasher.update(self.name)
+
+    fn __eq__(self, other: Self) -> Bool:
+        return self.name == other.name
 
     fn __ne__(self, other: Self) -> Bool:
         return not self.__eq__(other)
@@ -77,13 +89,6 @@ struct ReadValue[size: Int](Callable):
 @value
 struct WriteValue[size: Int](Callable):
     alias info = FuncInfo("WriteValue" + String(size), size, 0)
-
-    fn n_args(self) -> Int:
-        return size
-
-    @staticmethod
-    fn n_outs() -> Int:
-        return 0
 
     fn write_call[sys: SymConfig, W: Writer](self, call: Call[_, sys], mut writer: W):
         writer.write("Write(")
@@ -97,7 +102,7 @@ struct WriteValue[size: Int](Callable):
         hasher.update(Self.info.hash)
 
     fn __eq__(self, other: Self) -> Bool:
-        return self.size == other.size
+        return True
 
     fn __ne__(self, other: Self) -> Bool:
         return not self.__eq__(other)
@@ -106,13 +111,6 @@ struct WriteValue[size: Int](Callable):
 @value
 struct Add(Callable):
     alias info = FuncInfo("Add", 2, 1)
-
-    fn n_args(self) -> Int:
-        return 2
-
-    @staticmethod
-    fn n_outs() -> Int:
-        return 1
 
     fn write_call[sys: SymConfig, W: Writer](self, call: Call[_, sys], mut writer: W):
         writer.write(call.args(0), " + ", call.args(1))
@@ -130,13 +128,6 @@ struct Add(Callable):
 @value
 struct Mul(Callable):
     alias info = FuncInfo("Mul", -1, 1)
-
-    fn n_args(self) -> Int:
-        return 2
-
-    @staticmethod
-    fn n_outs() -> Int:
-        return 1
 
     fn write_call[sys: SymConfig, W: Writer](self, call: Call[_, sys], mut writer: W):
         writer.write(call.args(0), " * ", call.args(1))
@@ -156,13 +147,6 @@ struct StoreFloat(Callable):
     alias info = FuncInfo("StoreFloat", 0, 1)
     var data: Float64
 
-    fn n_args(self) -> Int:
-        return 0
-
-    @staticmethod
-    fn n_outs() -> Int:
-        return 1
-
     fn write_call[sys: SymConfig, W: Writer](self, call: Call[_, sys], mut writer: W):
         writer.write(self.data)
 
@@ -181,13 +165,6 @@ struct StoreFloat(Callable):
 struct StoreOne(Callable):
     alias info = FuncInfo("StoreOne", 0, 1)
 
-    fn n_args(self) -> Int:
-        return 0
-
-    @staticmethod
-    fn n_outs() -> Int:
-        return 1
-
     fn write_call[sys: SymConfig, W: Writer](self, call: Call[_, sys], mut writer: W):
         writer.write("1")
 
@@ -205,13 +182,6 @@ struct StoreOne(Callable):
 struct StoreZero(Callable):
     alias info = FuncInfo("StoreZero", 0, 1)
 
-    fn n_args(self) -> Int:
-        return 0
-
-    @staticmethod
-    fn n_outs() -> Int:
-        return 1
-
     fn write_call[sys: SymConfig, W: Writer](self, call: Call[_, sys], mut writer: W):
         writer.write("0")
 
@@ -228,15 +198,6 @@ struct StoreZero(Callable):
 @value
 struct AnyFunc(Callable):
     alias info = FuncInfo("AnyFunc", -1, -1)
-
-    fn n_args(self) -> Int:
-        constrained[False, "AnyFunc should not be used as a function type"]()
-        return -1
-
-    @staticmethod
-    fn n_outs() -> Int:
-        constrained[False, "AnyFunc should not be used as a function type"]()
-        return 1
 
     fn write_call[sys: SymConfig, W: Writer](self, call: Call[_, sys], mut writer: W):
         constrained[False, "AnyFunc should not be used as a function type"]()

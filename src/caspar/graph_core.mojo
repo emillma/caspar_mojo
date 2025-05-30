@@ -10,6 +10,7 @@ from .collections import (
     CallIdx,
     ValIdx,
     OutIdx,
+    ArgIdx,
     IndexList,
 )
 from collections import BitSet
@@ -23,12 +24,12 @@ alias BytePtr = UnsafePointer[Byte]
 struct ValMem[config: SymConfig](Movable,Copyable, _HashableWithHasher):
     var call_idx: CallIdx
     var out_idx: OutIdx
-    var uses: Set[CallIdx]
+    var uses: Dict[CallIdx, IndexList[ArgIdx]]
 
     fn __init__(out self, call_idx: CallIdx, out_idx: OutIdx):
         self.call_idx = call_idx
         self.out_idx = out_idx
-        self.uses = Set[CallIdx]()
+        self.uses = Dict[CallIdx, IndexList[ArgIdx]]()
 
     fn __hash__[H: _Hasher](self, mut hasher: H):
         hasher.update(self.call_idx)
@@ -71,6 +72,7 @@ struct CallMem[FuncT: Callable, config: SymConfig](Movable, _HashableWithHasher)
         owned args: IndexList[ValIdx]
     ):
         constrained[config.funcs.supports[FuncT](), "Type not supported"]()
+        debug_assert(len(args) == FuncT.info.n_args or FuncT.info.n_args == -1)
         self.func = func^
         self.args = args^
         self.outs = IndexList[ValIdx](capacity=FuncT.info.n_outs)
@@ -101,6 +103,7 @@ struct CallMem[FuncT: Callable, config: SymConfig](Movable, _HashableWithHasher)
 
 
 struct GraphCore[config: SymConfig]:
+    """The symbolic graph core that holds the call sets and value memory."""
     var callsets: __mlir_type[
         `!pop.array<`, len(config.funcs).value, `, `, CallSet[AnyFunc, config], `>`
     ]
@@ -184,11 +187,17 @@ struct GraphCore[config: SymConfig]:
         var call = CallMem[FT, config](func, args^)
         var idx = self.callset[FT=FT](ftype_idx).search(call)
         ret = CallIdx(ftype_idx, idx.index)
+        for i in range(len(call.args)):
+            try:
+                self.valmem(call.args[i]).uses.setdefault(ret, IndexList[ArgIdx]()).append(i)
+            except KeyError:
+                debug_assert(False)
+
         if not idx.found:
             for i in range(FT.info.n_outs):
                 call.outs.append(self.valmem_add(ret, i))
             self.callset[FT=FT](ftype_idx).insert(call^, idx)
-       
+        
     @staticmethod
     fn ftype_idx[FT: Callable]() -> Int:
         constrained[config.funcs.supports[FT](), "Type not supported"]()

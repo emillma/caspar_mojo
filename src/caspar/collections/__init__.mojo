@@ -4,6 +4,7 @@ from .named_index import (
     CallInstanceIdx,
     ValIdx,
     OutIdx,
+    ArgIdx,
     CallIdx,
     IndexList,
 )
