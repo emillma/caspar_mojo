@@ -5,6 +5,7 @@ from os import abort
 from utils.static_tuple import StaticTuple
 from .context import Context
 from .utils import multihash
+from memory import UnsafePointer
 
 # from caspar.utils import hash
 alias Stack = StaticTuple[Float32, _]
@@ -85,17 +86,19 @@ struct Symbol(Callable):
 @value
 struct ReadValue[size: Int](Callable):
     alias info = FuncInfo("ReadValue" + String(size), 0, size)
-    alias DataT = String
-    var name: Self.DataT
+    alias DataT = Tuple[Int, Int]
+
+    var arg: Int
+    var offset: Int
 
     fn write_call[sys: SymConfig, W: Writer](self, call: Call[_, sys], mut writer: W):
-        writer.write(self.name)
+        writer.write("arg_", self.arg)
 
     fn __hash__(self) -> UInt:
-        return multihash(Self.info.hash, self.name)
+        return multihash(Self.info.hash, self.arg, self.offset)
 
     fn __eq__(self, other: Self) -> Bool:
-        return self.name == other.name
+        return self.arg == other.arg and self.offset == other.offset
 
     fn __ne__(self, other: Self) -> Bool:
         return not self.__eq__(other)
@@ -111,10 +114,13 @@ struct ReadValue[size: Int](Callable):
 @value
 struct WriteValue[size: Int](Callable):
     alias info = FuncInfo("WriteValue" + String(size), size, 0)
-    alias DataT = NoneType
+    alias DataT = Tuple[String, Int]
+
+    var arg: Int
+    var offset: Int
 
     fn write_call[sys: SymConfig, W: Writer](self, call: Call[_, sys], mut writer: W):
-        writer.write("Write(")
+        writer.write("Write(arg_", self.arg, ", ")
         for i in range(size):
             writer.write(call.args(i))
             if i < size - 1:
@@ -122,10 +128,10 @@ struct WriteValue[size: Int](Callable):
         writer.write(")")
 
     fn __hash__(self) -> UInt:
-        return Self.info.hash
+        return multihash(Self.info.hash, self.arg, self.offset)
 
     fn __eq__(self, other: Self) -> Bool:
-        return True
+        return self.arg == other.arg and self.offset == other.offset
 
     fn __ne__(self, other: Self) -> Bool:
         return not self.__eq__(other)
