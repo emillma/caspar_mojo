@@ -90,3 +90,10 @@ struct Graph[config: SymConfig]:
         if not _type_is_eq[Self, T]():
             return False
         return UnsafePointer(to=self) == UnsafePointer(to=rebind[Self](other))
+
+    fn take_core(owned self, out core: GraphCore[config]):
+        """Take ownership of the core, leaving the graph empty."""
+        var token = self._aquire()
+        core = self._core^
+        __disable_del token
+        __disable_del self

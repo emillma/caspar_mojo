@@ -7,5 +7,6 @@ from .named_index import (
     ArgIdx,
     CallIdx,
     IndexList,
+    RegIdx,
 )
 from .callset import CallSet

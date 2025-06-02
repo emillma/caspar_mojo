@@ -1,18 +1,10 @@
 from hashlib._hasher import _HashableWithHasher, _Hasher, default_hasher
 
 
-fn hash[*Ts: _HashableWithHasher](*values: *Ts) -> UInt64:
-    """Compute the hash of multiple values using a specified hasher.
-
-    Args:
-        values: Values to be hashed.
-
-    Returns:
-        The computed hash value.
-    """
-    var hasher = default_hasher()
+fn multihash[*Ts: Hashable](*values: *Ts) -> UInt:
+    var ret = hash(values[0])
 
     @parameter
-    for i in range(len(VariadicList(Ts))):
-        hasher.update(values[i])
-    return hasher^.finish()
+    for i in range(1, len(VariadicList(Ts))):
+        ret = ret * 33 + hash(values[i])
+    return ret

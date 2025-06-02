@@ -14,10 +14,9 @@ from .collections import (
     IndexList,
 )
 from collections import BitSet
-from hashlib._hasher import _HashableWithHasher, _Hasher, default_hasher
 from caspar.utils import hash
 from caspar.collections import CallSet
-
+from .utils import multihash
 alias BytePtr = UnsafePointer[Byte]
 
 
@@ -55,7 +54,7 @@ struct CallFlags:
             self.data &= ~(1 << idx)
 
 
-struct CallMem[FuncT: Callable, config: SymConfig](Movable,ExplicitlyCopyable, _HashableWithHasher):
+struct CallMem[FuncT: Callable, config: SymConfig](Movable,ExplicitlyCopyable, Hashable):
     var args: IndexList[ValIdx]
     var outs: IndexList[ValIdx]
     var hash: UInt64
@@ -74,7 +73,7 @@ struct CallMem[FuncT: Callable, config: SymConfig](Movable,ExplicitlyCopyable, _
         self.outs = IndexList[ValIdx](capacity=FuncT.info.n_outs)
         
         self.flags = CallFlags()
-        self.hash = hash(self.func, self.args)
+        self.hash = hash(self.func) + hash(self.args)
 
     fn copy(self, out ret: Self):
         constrained[config.funcs.supports[FuncT](), "Type not supported"]()
@@ -84,10 +83,9 @@ struct CallMem[FuncT: Callable, config: SymConfig](Movable,ExplicitlyCopyable, _
         ret.hash = self.hash
         __mlir_op.`lit.ownership.mark_initialized`(__get_mvalue_as_litref(ret))
 
-    fn __hash__[H: _Hasher](self, mut hasher: H):
-        hasher.update(self.func)
-        hasher.update(self.args)
-
+    fn __hash__(self) -> UInt:
+        return multihash(hash(self.func) ,self.args)
+    
     fn same_call(self, other: Self) -> Bool:
         constrained[config.funcs.supports[FuncT](), "Type not supported"]()
         constrained[config == other.config, "Configurations do not match"]()
@@ -116,7 +114,19 @@ struct GraphCore[config: SymConfig]:
         for i in config.funcs.range():
             self.callset_ptr[FT=config.funcs.Ts[i]]().init_pointee_move(
                 CallSet[config.funcs.Ts[i], config]())
-                
+
+    fn __moveinit__(out self, owned other: Self):
+        self.vals = other.vals^
+        other.vals = List[ValMem[config]](capacity=0)
+        __mlir_op.`lit.ownership.mark_initialized`(__get_mvalue_as_litref(self.callsets))
+        @parameter
+        for i in config.funcs.range():
+            other.callset_ptr[FT=config.funcs.Ts[i]]().move_pointee_into(
+                self.callset_ptr[FT=config.funcs.Ts[i]]()
+            )
+    
+        
+            
     fn callset_ptr[
         FT: Callable, origin:Origin
     ](ref [origin]self, ftype_idx: FuncTypeIdx = -1

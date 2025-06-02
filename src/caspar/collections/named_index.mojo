@@ -1,6 +1,6 @@
 from memory import UnsafePointer, memcpy
-from hashlib._hasher import _HashableWithHasher, _Hasher, default_hasher
 from sys.intrinsics import sizeof
+from ..utils import multihash
 
 
 @fieldwise_init("implicit")
@@ -9,8 +9,8 @@ struct NamedIndex[T: StringLiteral](
     Movable,
     Copyable,
     Indexer,
-    Comparable,
-    _HashableWithHasher,
+    # Comparable,
+    KeyElement,
 ):
     var value: Int
 
@@ -29,8 +29,8 @@ struct NamedIndex[T: StringLiteral](
     fn __req__(self, other: Self) -> Bool:
         return self.value == other.value
 
-    fn __hash__[H: _Hasher](self, mut hasher: H):
-        hasher.update(self.value)
+    fn __hash__(self) -> UInt:
+        return hash(self.value)
 
     fn __lt__(self, other: Self) -> Bool:
         return self.value < other.value
@@ -48,17 +48,21 @@ struct NamedIndex[T: StringLiteral](
         return Self(value=self.value + other.value)
 
 
-alias IndexT = _HashableWithHasher & EqualityComparable & Movable & Copyable
+alias IndexT = Movable & Copyable & KeyElement & Indexer
 alias FuncTypeIdx = NamedIndex["FuncTypeIdx"]
 alias CallInstanceIdx = NamedIndex["CallInstanceIdx"]
+
 alias ValIdx = NamedIndex["ValIdx"]
-alias OutIdx = NamedIndex["OutIdx"]
+
 alias ArgIdx = NamedIndex["ArgIdx"]
+alias OutIdx = NamedIndex["OutIdx"]
+
+alias RegIdx = NamedIndex["RegIdx"]
 
 
 @value
 @register_passable("trivial")
-struct CallIdx(KeyElement, _HashableWithHasher):
+struct CallIdx(KeyElement):
     var type: FuncTypeIdx
     var instance: CallInstanceIdx
 
@@ -68,18 +72,12 @@ struct CallIdx(KeyElement, _HashableWithHasher):
     fn __ne__(self, other: Self) -> Bool:
         return self.type != other.type or self.instance != other.instance
 
-    fn __hash__[H: _Hasher](self, mut hasher: H):
-        hasher.update(self.type)
-        hasher.update(self.instance)
-
     fn __hash__(self) -> UInt:
-        var hasher = default_hasher()
-        hasher.update(self)
-        return UInt(hasher^.finish())
+        return multihash(self.type, self.instance)
 
 
 struct IndexList[ElemT: IndexT, stack_size: Int = 4](
-    Sized, Copyable, Movable, ExplicitlyCopyable, _HashableWithHasher
+    Sized, Copyable, Movable, ExplicitlyCopyable, Hashable
 ):
     var capacity: UInt32
     var count: UInt32
@@ -160,11 +158,8 @@ struct IndexList[ElemT: IndexT, stack_size: Int = 4](
         if self.is_heap():
             ptr.free()
 
-    fn __hash__[H: _Hasher](self, mut hasher: H):
-        hasher._update_with_bytes(
-            self.ptr().bitcast[UInt8](),
-            Int(self.count) * sizeof[ElemT](),
-        )
+    fn __hash__(self) -> UInt:
+        return hash(self.ptr().bitcast[UInt8](), Int(self.count) * sizeof[ElemT]())
 
     fn __eq__(self, other: Self) -> Bool:
         if self.count != other.count:
