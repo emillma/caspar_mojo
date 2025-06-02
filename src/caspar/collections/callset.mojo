@@ -78,8 +78,6 @@ struct CallSet[FuncT: Callable, config: SymConfig](Movable, Sized):
         perturb >>= PERTURB_SHIFT
         slot = ((5 * slot) + Int(perturb + 1)) & (self.capacity - 1)
 
-    # fn add[unsafe: Bool = False](mut self, owned call: Self.CallT):
-
     fn insert[
         unsafe: Bool = False
     ](mut self, owned call: Self.CallT, idx: SearchResult):
@@ -98,18 +96,3 @@ struct CallSet[FuncT: Callable, config: SymConfig](Movable, Sized):
 
     fn __len__(self) -> Int:
         return self.size
-
-
-fn get_offsets[config: SymConfig, *Ts: Callable](out ret: List[Int]):
-    ret = List[Int](capacity=len(VariadicList(Ts)) + 1)
-    ret.append(0)
-
-    @parameter
-    for i in range(len(VariadicList(Ts))):
-        ret.append(sizeof[CallMem[Ts[i], config]]())
-
-
-struct MultiDict[config: SymConfig]:
-    """A multi-dictionary that can hold multiple values for each key."""
-
-    alias offsets = get_offsets[config, *config.funcs.Ts]()

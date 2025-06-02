@@ -21,7 +21,7 @@ from caspar.collections import CallSet
 alias BytePtr = UnsafePointer[Byte]
 
 
-struct ValMem[config: SymConfig](Movable,Copyable, _HashableWithHasher):
+struct ValMem[config: SymConfig](Movable,Copyable):
     var call_idx: CallIdx
     var out_idx: OutIdx
     var uses: Dict[CallIdx, IndexList[ArgIdx]]
@@ -30,10 +30,6 @@ struct ValMem[config: SymConfig](Movable,Copyable, _HashableWithHasher):
         self.call_idx = call_idx
         self.out_idx = out_idx
         self.uses = Dict[CallIdx, IndexList[ArgIdx]]()
-
-    fn __hash__[H: _Hasher](self, mut hasher: H):
-        hasher.update(self.call_idx)
-        hasher.update(self.out_idx)
 
 
 @value
@@ -59,7 +55,7 @@ struct CallFlags:
             self.data &= ~(1 << idx)
 
 
-struct CallMem[FuncT: Callable, config: SymConfig](Movable, _HashableWithHasher):
+struct CallMem[FuncT: Callable, config: SymConfig](Movable,ExplicitlyCopyable, _HashableWithHasher):
     var args: IndexList[ValIdx]
     var outs: IndexList[ValIdx]
     var hash: UInt64
@@ -81,6 +77,7 @@ struct CallMem[FuncT: Callable, config: SymConfig](Movable, _HashableWithHasher)
         self.hash = hash(self.func, self.args)
 
     fn copy(self, out ret: Self):
+        constrained[config.funcs.supports[FuncT](), "Type not supported"]()
         ret.args = self.args.copy()
         ret.outs = self.outs.copy()
         ret.func = self.func
@@ -112,24 +109,14 @@ struct GraphCore[config: SymConfig]:
 
 
     fn __init__(out self):
-        
-        __mlir_op.`lit.ownership.mark_initialized`(__get_mvalue_as_litref(self.callsets))
-
         self.vals = List[ValMem[config]]()
-        
 
+        __mlir_op.`lit.ownership.mark_initialized`(__get_mvalue_as_litref(self.callsets))
         @parameter
         for i in config.funcs.range():
             self.callset_ptr[FT=config.funcs.Ts[i]]().init_pointee_move(
                 CallSet[config.funcs.Ts[i], config]())
-                    
-        #     alias CallT = CallMem[config.funcs.Ts[i], config]
-        #     self.call_ptrs[i] = UnsafePointer[CallT].alloc(init_size).bitcast[Byte]()
-        #     self.call_counts.unsafe_ptr().offset(i).init_pointee_move(0)
-        #     self.call_capacities.unsafe_ptr().offset(i).init_pointee_move(init_size)
-        #     self.call_strides.unsafe_ptr().offset(i).init_pointee_move(sizeof[CallT]())
-
-
+                
     fn callset_ptr[
         FT: Callable, origin:Origin
     ](ref [origin]self, ftype_idx: FuncTypeIdx = -1
@@ -153,13 +140,14 @@ struct GraphCore[config: SymConfig]:
                 mut = origin.mut,
                 origin = origin
             ]()
+
     fn callset[
         FT: Callable, origin: Origin
     ](ref [origin]self, ftype_idx: FuncTypeIdx = -1) -> ref [
         self.callset_ptr[FT=FT](ftype_idx)[]] CallSet[FT, config]:
         return self.callset_ptr[FT=FT](ftype_idx)[]
 
-    fn valmem[
+    fn valmem_get[
         origin: Origin
     ](ref [origin]self, idx: ValIdx) -> ref [self.vals[idx]] ValMem[config]:
         return self.vals[idx]
@@ -168,15 +156,13 @@ struct GraphCore[config: SymConfig]:
         ret = len(self.vals)
         self.vals.append(ValMem[config](call_idx=call_idx, out_idx=out_idx))
 
-    fn callmem_any[
+    fn callmem_get[
          FT: Callable
     ](ref self, idx: CallIdx) -> ref [
         self.callset_ptr[FT=FT](idx.type)[][idx.instance]] CallMem[
         FT, config
     ]:
         return self.callset_ptr[FT=FT](idx.type)[][idx.instance]
-
-
 
     fn callmem_add[
         FT: Callable
@@ -189,7 +175,9 @@ struct GraphCore[config: SymConfig]:
         ret = CallIdx(ftype_idx, idx.index)
         for i in range(len(call.args)):
             try:
-                self.valmem(call.args[i]).uses.setdefault(ret, IndexList[ArgIdx]()).append(i)
+                self.valmem_get(call.args[i]
+                ).uses.setdefault(ret, IndexList[ArgIdx]()
+                ).append(i)
             except KeyError:
                 debug_assert(False)
 
