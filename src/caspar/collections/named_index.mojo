@@ -151,6 +151,13 @@ struct IndexList[ElemT: IndexT, stack_size: Int = 4](
         debug_assert(Int(idx) < Int(self.count), "Index out of bounds for IndexList")
         return self.ptr().offset(idx)[]
 
+    fn __setitem__[T: Indexer](mut self, idx: T, owned value: ElemT):
+        debug_assert(Int(idx) <= Int(self.count), "Index out of bounds for IndexList")
+        if Int(idx) == Int(self.count):
+            self.append(value)
+        else:
+            self.ptr().offset(idx).init_pointee_move(value^)
+
     fn __del__(owned self):
         var ptr = self.ptr()
         for i in range(self.count):
