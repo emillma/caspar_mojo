@@ -14,7 +14,7 @@ from sys import sizeof, alignof
 from memory import UnsafePointer
 
 # from caspar.val import Val, GraphRef
-from caspar.sysconfig import SymConfigDefault, FuncCollectionDefault
+from caspar.sysconfig import SymConfigDefault, FuncCollectionDefault, SymConfig
 
 from caspar.collections import CallSet
 from sys.intrinsics import _type_is_eq
@@ -36,10 +36,35 @@ fn foo() -> KernelData[SymConfigDefault]:
     )
 
 
+struct Context[config: SymConfig, origin: ImmutableOrigin](Movable, Copyable):
+    alias Vector = Vector[_, config=config, origin=origin, read=_, write=_]
+
+    fn __init__(out self, ref [origin]graph: Graph[config]):
+        ...
+
+
+fn test(
+    con: Context,
+    x: con.Vector[4, read=Unique],
+    y: con.Vector[4, read=Unique],
+    mut z: con.Vector[4, write=Unique],
+):
+    z = x + y
+
+
 fn main() raises:
     var graph = Graph[SymConfigDefault]()
+    var con = Context(graph)
+    x = con.Vector[4, read=Unique]("x", graph)
+    y = con.Vector[4, read=Unique]("y", graph)
+    z = con.Vector[4, write=Unique]("z", graph)
 
-    v = Vector[4, read=Unique]("x", graph)
-    b = Vector[4, write=Unique]("x", graph)
-    print(v[0])
-    print(v[1])
+    test(con, x, y, z)
+    print(z[0])
+    # var x = Vector[4, read=Unique]("x", graph)
+    # var y = Vector[4, read=Unique]("y", graph)
+    # var z: Vector[4, write=Unique] = x + y
+    # print(z[1])
+    # b = Vector[4, write=Unique]("x", graph)
+    # print(v[0])
+    # print(v[1])

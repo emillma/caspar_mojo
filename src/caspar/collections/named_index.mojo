@@ -103,10 +103,7 @@ struct IndexList[ElemT: IndexT, stack_size: Int = 4](
         if other.is_heap():
             self.set_ptr(other.ptr())
         else:
-            for i in range(stack_size):
-                other.stack_ptr().offset(i).move_pointee_into(
-                    self.stack_ptr().offset(i)
-                )
+            memcpy(self.stack_ptr(), other.stack_ptr(), Int(stack_size))
 
     fn __copyinit__(out self, other: Self):
         self = other.copy()

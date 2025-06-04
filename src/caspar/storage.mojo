@@ -22,12 +22,15 @@ struct SymbolStorage[size: Int, config: SymConfig, origin: ImmutableOrigin](
 ):
     alias ElemT = Val[AnyFunc, config, origin]
 
-    var graph: Pointer[Graph[config], origin]
     var data: IndexList[ValIdx, Self.size]
     var valid: BitSet[Self.size]
+    var graph: Pointer[Graph[config], origin]
 
     fn __init__(out self: Self, ref [origin]graph: Graph[config]):
-        self.graph = Pointer[Graph[config], origin](to=graph)
+        self = Self(Pointer(to=graph))
+
+    fn __init__(out self: Self, graph: Pointer[Graph[config], origin]):
+        self.graph = graph
         self.data = IndexList[ValIdx, Self.size]()
         self.valid = BitSet[Self.size]()
 
@@ -53,26 +56,37 @@ struct Vector[
     *,
     read: Accessor = UnDefined,
     write: Accessor = UnDefined,
-]:
+](Movable, Copyable):
     alias reader = read
     alias writer = read
+    alias Undef = Vector[size, config, origin, read=UnDefined, write=UnDefined]
+    alias Like = Vector[size, config, origin, read=_, write=_]
     var data: SymbolStorage[size, config, origin]
 
-    fn __copyinit__(out self: Self, other: Vector[size, config, origin]):
-        self.data = other.data
+    @implicit
+    fn __init__(
+        out self: Self,
+        owned other: Self.Like,
+    ):
+        self.data = other.data^
+        __disable_del other
 
     fn __init__(out self: Self, name: String, ref [origin]graph: Graph[config]):
-        self.data = Self.reader.read[size=size](name, graph)
+        @parameter
+        if _type_is_eq[Self.reader, UnDefined]():
+            self.data = SymbolStorage[size](graph)
+        else:
+            self.data = Self.reader.read[size=size](name, graph)
+
+    fn __init__(out self: Self, graph: Pointer[Graph[config], origin]):
+        self.data = SymbolStorage[size, config, origin](graph)
 
     fn __getitem__(self, idx: Int) -> Val[AnyFunc, config, origin]:
         return self.data[idx]
 
-    # fn __add__(self, other: Self, out ret: Self):
-    #     debug_assert(
-    #         _type_is_eq(self, other),
-    #         "Cannot add vectors of different types",
-    #     )
-    #     ret = Self(reader=self.reader, writer=self.writer)
-    #     for i in range(self.data.size):
-    #         ret.data[i] = self.data[i] + other.data[i]
-    #     return ret
+    fn __add__(self, other: Self.Like, out ret: Self.Like):
+        ret = Self.Like(self.data.graph)
+        for i in range(size):
+            ret.data[i] = self.data.graph[].add_call(
+                funcs.Add(), self.data[i], other.data[i]
+            )[0]
