@@ -24,7 +24,7 @@ struct NamedIndex[T: StringLiteral](
         return self.value == other.value
 
     fn __ne__(self, other: Self) -> Bool:
-        return self.value == other.value
+        return not self.value == other.value
 
     fn __req__(self, other: Self) -> Bool:
         return self.value == other.value
@@ -50,7 +50,7 @@ struct NamedIndex[T: StringLiteral](
 
 alias IndexT = Movable & Copyable & KeyElement & Indexer
 alias FuncTypeIdx = NamedIndex["FuncTypeIdx"]
-alias CallInstanceIdx = NamedIndex["CallInstanceIdx"]
+alias CallIdx = NamedIndex["CallIdx"]
 
 alias ValIdx = NamedIndex["ValIdx"]
 
@@ -58,22 +58,6 @@ alias ArgIdx = NamedIndex["ArgIdx"]
 alias OutIdx = NamedIndex["OutIdx"]
 
 alias RegIdx = NamedIndex["RegIdx"]
-
-
-@value
-@register_passable("trivial")
-struct CallIdx(KeyElement):
-    var type: FuncTypeIdx
-    var instance: CallInstanceIdx
-
-    fn __eq__(self, other: Self) -> Bool:
-        return self.type == other.type and self.instance == other.instance
-
-    fn __ne__(self, other: Self) -> Bool:
-        return self.type != other.type or self.instance != other.instance
-
-    fn __hash__(self) -> UInt:
-        return multihash(self.type, self.instance)
 
 
 struct IndexList[ElemT: IndexT, stack_size: Int = 4](

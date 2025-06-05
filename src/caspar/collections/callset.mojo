@@ -7,7 +7,7 @@ from caspar.graph import CallMem, ValMem
 
 from collections.dict import _EMPTY, _REMOVED, _DictIndex
 from memory import UnsafePointer, memcpy
-from . import CallIdx, ValIdx, OutIdx, IndexList, CallInstanceIdx
+from . import CallIdx, ValIdx, OutIdx, IndexList, CallIdx
 from .bitlist import BitList
 
 
@@ -19,18 +19,17 @@ struct SearchResult:
     var index: Int
 
 
-struct CallSet[FuncT: Callable, config: SymConfig](Movable, Sized):
-    alias CallT = CallMem[FuncT, config]
-
+struct CallSet[config: SymConfig](Movable, Sized):
+    alias CallT = CallMem[config]
     var size: Int
     var capacity: Int
     var index: _DictIndex
-    var entries: UnsafePointer[Self.CallT]
+    var entries: UnsafePointer[CallMem[config]]
     var stride: Int
 
     fn __init__(out self):
-        constrained[sizeof[Self]() == sizeof[CallSet[AnyFunc, config]]()]()
-        alias INITIAL_CAPACITY = 16
+        constrained[sizeof[Self]() == sizeof[CallSet[config]]()]()
+        alias INITIAL_CAPACITY = 200
 
         self.entries = UnsafePointer[Self.CallT].alloc(INITIAL_CAPACITY)
         self.capacity = INITIAL_CAPACITY
@@ -39,24 +38,16 @@ struct CallSet[FuncT: Callable, config: SymConfig](Movable, Sized):
         self.stride = sizeof[Self.CallT]()
 
     @implicit
-    fn __init__(out self: CallSet[AnyFunc, config], owned other: CallSet[_, config]):
+    fn __init__(out self: CallSet[config], owned other: CallSet[config]):
         __mlir_op.`lit.ownership.mark_initialized`(__get_mvalue_as_litref(self))
         UnsafePointer(to=self).bitcast[__type_of(other)]().init_pointee_move(other^)
 
-    fn __getitem__(ref self, idx: CallInstanceIdx) -> ref [self.entries] Self.CallT:
+    fn __getitem__(ref self, idx: CallIdx) -> ref [self.entries] Self.CallT:
         debug_assert(-self.size <= Int(idx) < self.size, "Index out of bounds")
         if idx >= 0:
             return self.entries.offset(idx)[]
         else:
             return self.entries.offset(idx + self.size)[]
-
-    fn view[
-        FT: Callable
-    ](ref self: CallSet[AnyFunc, config]) -> ref [__origin_of(self)] CallSet[
-        FT, config
-    ]:
-        constrained[config.funcs.supports[FT](), "Type not supported"]()
-        return UnsafePointer(to=self).bitcast[CallSet[FT, config]]()[]
 
     fn search(self, call: Self.CallT) -> SearchResult:
         var slot = call.hash & (self.capacity - 1)

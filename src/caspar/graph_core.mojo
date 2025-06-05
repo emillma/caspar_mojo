@@ -5,8 +5,6 @@ from .funcs import Callable, AnyFunc
 from sys.intrinsics import sizeof, _type_is_eq
 from collections import Set
 from .collections import (
-    FuncTypeIdx,
-    CallInstanceIdx,
     CallIdx,
     ValIdx,
     OutIdx,
@@ -16,11 +14,13 @@ from .collections import (
 from collections import BitSet
 from caspar.utils import hash
 from caspar.collections import CallSet
+from caspar.collections.callset import SearchResult
 from .utils import multihash
+
 alias BytePtr = UnsafePointer[Byte]
 
 
-struct ValMem[config: SymConfig](Movable,Copyable):
+struct ValMem[config: SymConfig](Movable, Copyable):
     var call_idx: CallIdx
     var out_idx: OutIdx
     var uses: Dict[CallIdx, IndexList[ArgIdx]]
@@ -54,29 +54,24 @@ struct CallFlags:
             self.data &= ~(1 << idx)
 
 
-struct CallMem[FuncT: Callable, config: SymConfig](Movable,ExplicitlyCopyable, Hashable):
+struct CallMem[config: SymConfig](Movable, ExplicitlyCopyable, Hashable):
     var args: IndexList[ValIdx]
     var outs: IndexList[ValIdx]
     var hash: UInt64
     var flags: CallFlags
-    var func: FuncT  # Important to keep this field last for AnyFunc compatibility
+    var func: config.FuncVariant
 
-    fn __init__(
-        out self,
-        owned func: FuncT,
-        owned args: IndexList[ValIdx]
-    ):
-        constrained[config.funcs.supports[FuncT](), "Type not supported"]()
-        debug_assert(len(args) == FuncT.info.n_args or FuncT.info.n_args == -1)
-        self.func = func^
+    fn __init__[FT: Callable](out self, owned func: FT, owned args: IndexList[ValIdx]):
+        constrained[config.funcs.supports[FT](), "Type not supported"]()
+        debug_assert(len(args) == FT.info.n_args or FT.info.n_args == -1)
         self.args = args^
-        self.outs = IndexList[ValIdx](capacity=FuncT.info.n_outs)
-        
+        self.hash = hash(func) + hash(self.args)
+        self.func = func^
+        self.outs = IndexList[ValIdx](capacity=FT.info.n_outs)
+
         self.flags = CallFlags()
-        self.hash = hash(self.func) + hash(self.args)
 
     fn copy(self, out ret: Self):
-        constrained[config.funcs.supports[FuncT](), "Type not supported"]()
         ret.args = self.args.copy()
         ret.outs = self.outs.copy()
         ret.func = self.func
@@ -84,12 +79,9 @@ struct CallMem[FuncT: Callable, config: SymConfig](Movable,ExplicitlyCopyable, H
         __mlir_op.`lit.ownership.mark_initialized`(__get_mvalue_as_litref(ret))
 
     fn __hash__(self) -> UInt:
-        return multihash(hash(self.func) ,self.args)
-    
+        return multihash(hash(self.func), self.args)
+
     fn same_call(self, other: Self) -> Bool:
-        constrained[config.funcs.supports[FuncT](), "Type not supported"]()
-        constrained[config == other.config, "Configurations do not match"]()
-        constrained[_type_is_eq[FuncT, other.FuncT](), "Function types do not match"]()
         return (
             self.hash == other.hash
             and self.func == other.func
@@ -97,105 +89,49 @@ struct CallMem[FuncT: Callable, config: SymConfig](Movable,ExplicitlyCopyable, H
         )
 
 
-struct GraphCore[config: SymConfig]:
+struct GraphCore[config: SymConfig](Movable):
     """The symbolic graph core that holds the call sets and value memory."""
-    var callsets: __mlir_type[
-        `!pop.array<`, len(config.funcs).value, `, `, CallSet[AnyFunc, config], `>`
-    ]
+
+    var calls: CallSet[config]
 
     var vals: List[ValMem[config]]
 
-
     fn __init__(out self):
         self.vals = List[ValMem[config]]()
-
-        __mlir_op.`lit.ownership.mark_initialized`(__get_mvalue_as_litref(self.callsets))
-        @parameter
-        for i in config.funcs.range():
-            self.callset_ptr[FT=config.funcs.Ts[i]]().init_pointee_move(
-                CallSet[config.funcs.Ts[i], config]())
-
-    fn __moveinit__(out self, owned other: Self):
-        self.vals = other.vals^
-        other.vals = List[ValMem[config]](capacity=0)
-        __mlir_op.`lit.ownership.mark_initialized`(__get_mvalue_as_litref(self.callsets))
-        @parameter
-        for i in config.funcs.range():
-            other.callset_ptr[FT=config.funcs.Ts[i]]().move_pointee_into(
-                self.callset_ptr[FT=config.funcs.Ts[i]]()
-            )
-    
-        
-            
-    fn callset_ptr[
-        FT: Callable, origin:Origin
-    ](ref [origin]self, ftype_idx: FuncTypeIdx = -1
-    ) -> UnsafePointer[type=CallSet[FT, config],
-        mut = origin.mut,
-        origin = origin
-    ]:
-        var idx: FuncTypeIdx
-        @parameter
-        if _type_is_eq[FT, AnyFunc]():
-            debug_assert(0 <= Int(ftype_idx) < len(config.funcs))
-            idx = ftype_idx
-        else:
-            debug_assert(ftype_idx == -1 or ftype_idx == Self.ftype_idx[FT]())
-            idx= Self.ftype_idx[FT]()
-
-        return  UnsafePointer(to=self.callsets)
-            .bitcast[CallSet[FT, config]]()
-            .offset(idx)
-            .origin_cast[
-                mut = origin.mut,
-                origin = origin
-            ]()
-
-    fn callset[
-        FT: Callable, origin: Origin
-    ](ref [origin]self, ftype_idx: FuncTypeIdx = -1) -> ref [
-        self.callset_ptr[FT=FT](ftype_idx)[]] CallSet[FT, config]:
-        return self.callset_ptr[FT=FT](ftype_idx)[]
+        self.calls = CallSet[config]()
 
     fn valmem_get[
         origin: Origin
     ](ref [origin]self, idx: ValIdx) -> ref [self.vals[idx]] ValMem[config]:
         return self.vals[idx]
 
-    fn valmem_add(mut self, call_idx: CallIdx, out_idx: OutIdx, out ret: ValIdx):        
+    fn valmem_add(mut self, call_idx: CallIdx, out_idx: OutIdx, out ret: ValIdx):
         ret = len(self.vals)
         self.vals.append(ValMem[config](call_idx=call_idx, out_idx=out_idx))
 
-    fn callmem_get[
-         FT: Callable
-    ](ref self, idx: CallIdx) -> ref [
-        self.callset_ptr[FT=FT](idx.type)[][idx.instance]] CallMem[
-        FT, config
-    ]:
-        return self.callset_ptr[FT=FT](idx.type)[][idx.instance]
+    fn callmem_get(ref self, idx: CallIdx) -> ref [self.calls[idx]] CallMem[config]:
+        return self.calls[idx]
 
     fn callmem_add[
         FT: Callable
     ](mut self, owned func: FT, owned args: IndexList[ValIdx], out ret: CallIdx):
-
         alias ftype_idx = Self.ftype_idx[FT]()
-        
-        var call = CallMem[FT, config](func, args^)
-        var idx = self.callset[FT=FT](ftype_idx).search(call)
-        ret = CallIdx(ftype_idx, idx.index)
+        var call = CallMem[config](func, args^)
+        var idx = self.calls.search(call)
+        ret = idx.index
+
         for i in range(len(call.args)):
             try:
-                self.valmem_get(call.args[i]
-                ).uses.setdefault(ret, IndexList[ArgIdx]()
+                self.valmem_get(call.args[i]).uses.setdefault(
+                    ret, IndexList[ArgIdx]()
                 ).append(i)
             except KeyError:
                 debug_assert(False)
-
         if not idx.found:
             for i in range(FT.info.n_outs):
                 call.outs.append(self.valmem_add(ret, i))
-            self.callset[FT=FT](ftype_idx).insert(call^, idx)
-        
+            self.calls.insert(call^, idx)
+
     @staticmethod
     fn ftype_idx[FT: Callable]() -> Int:
         constrained[config.funcs.supports[FT](), "Type not supported"]()

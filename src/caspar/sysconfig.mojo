@@ -5,6 +5,7 @@ from sys.intrinsics import _type_is_eq
 from os import abort
 from utils import Variant
 from sys.info import sizeof
+from caspar.collections import FuncVariant
 
 
 struct FuncCollection[*Ts: funcs.Callable](Sized):
@@ -19,13 +20,14 @@ struct FuncCollection[*Ts: funcs.Callable](Sized):
 
             @parameter
             for j in range(i):
-                constrained[
-                    Ts[i].info.fname != Ts[j].info.fname,
-                    "Duplicate function names: "
-                    + Ts[i].info.fname
-                    + " and "
-                    + Ts[j].info.fname,
-                ]()
+                ...
+                # constrained[
+                #     Ts[i].info.fname != Ts[j].info.fname,
+                #     "Duplicate function names: "
+                #     + Ts[i].info.fname
+                #     + " and "
+                #     + Ts[j].info.fname,
+                # ]()
 
     @staticmethod
     fn range() -> _SequentialRange:
@@ -74,6 +76,8 @@ struct FuncCollection[*Ts: funcs.Callable](Sized):
 
 
 struct SymConfig[funcs: FuncCollection]:
+    alias FuncVariant = FuncVariant[*funcs.Ts]
+
     fn __init__(out self):
         ...
 
@@ -97,7 +101,3 @@ alias FuncCollectionDefault = FuncCollection[
 ]()
 
 alias SymConfigDefault = SymConfig[FuncCollectionDefault]()
-
-
-struct RunConfig:
-    alias DType = SIMD[DType.float32, 1]

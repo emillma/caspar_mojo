@@ -1,5 +1,5 @@
 from .graph import Graph, CallMem, ValMem, LockToken
-from .collections import CallIdx, ValIdx, OutIdx, FuncTypeIdx, IndexList
+from .collections import CallIdx, ValIdx, OutIdx, IndexList
 from .sysconfig import SymConfig
 from .funcs import Callable, AnyFunc, StoreOne, StoreZero, StoreFloat
 
@@ -8,56 +8,62 @@ from sys.intrinsics import _type_is_eq
 
 @value
 @register_passable
-struct Call[FuncT: Callable, config: SymConfig, origin: ImmutableOrigin]:
+struct Call[config: SymConfig, origin: ImmutableOrigin]:
     var graph: Pointer[Graph[config], origin]
     var idx: CallIdx
 
     @implicit
     fn __init__[
         FT: Callable
-    ](out self: Call[AnyFunc, config, origin], other: Call[FT, config, origin]):
+    ](out self: Call[config, origin], other: Call[config, origin]):
         constrained[config.funcs.supports[FT](), "Type not supported"]()
         self.graph = other.graph
         self.idx = other.idx
 
     fn __getitem__(
         self,
-    ) -> ref [self.graph[].get_callmem(self)] CallMem[FuncT, config]:
-        return self.graph[].get_callmem[FuncT](self)
+    ) -> ref [self.graph[].get_callmem(self)] CallMem[config]:
+        return self.graph[].get_callmem(self)
 
-    fn args(self, idx: ValIdx) -> Val[AnyFunc, config, origin]:
-        return Val[AnyFunc, config, origin](self.graph, self[].args[idx])
+    fn args(self, idx: ValIdx) -> Val[config, origin]:
+        return Val[config, origin](self.graph, self[].args[idx])
 
-    fn __getattr__[name: StringLiteral["func".value]](self) -> ref [self[].func] FuncT:
+    fn __getattr__[
+        name: StringLiteral["func".value]
+    ](self) -> ref [self[].func] config.FuncVariant:
         return self[].func
 
-    fn __getitem__(self, idx: Int) -> Val[FuncT, config, origin]:
+    fn __getitem__(self, idx: Int) -> Val[config, origin]:
         return self.outs(idx)
 
-    fn outs(self, idx: Int) -> Val[FuncT, config, origin]:
-        return Val[FuncT, config, origin](self.graph, self[].outs[idx])
+    fn outs(self, idx: Int) -> Val[config, origin]:
+        return Val[config, origin](self.graph, self[].outs[idx])
 
     fn write_to[W: Writer](self, mut writer: W):
-        self.func.write_call(self, writer)
+        @parameter
+        for i in range(len(VariadicList(config.funcs.Ts))):
+            if i == Int(self.func.type_idx()):
+                alias T = config.funcs.Ts[i]
+                self.func[T].write_call(self, writer)
 
 
 trait CasparElement(Writable & Movable & Copyable):
     fn as_val(
         self, graph: Graph, token: LockToken
-    ) -> Val[AnyFunc, graph.config, __origin_of(graph)]:
+    ) -> Val[graph.config, __origin_of(graph)]:
         ...
 
 
 @value
 @register_passable
-struct Val[FuncT: Callable, config: SymConfig, origin: ImmutableOrigin](CasparElement):
+struct Val[config: SymConfig, origin: ImmutableOrigin](CasparElement):
     var graph: Pointer[Graph[config], origin]
     var idx: ValIdx
 
     @implicit
     fn __init__[
         FT: Callable
-    ](out self: Val[AnyFunc, config, origin], other: Val[FT, config, origin]):
+    ](out self: Val[config, origin], other: Val[config, origin]):
         constrained[config.funcs.supports[FT](), "Type not supported"]()
         self.graph = other.graph
         self.idx = other.idx
@@ -65,37 +71,22 @@ struct Val[FuncT: Callable, config: SymConfig, origin: ImmutableOrigin](CasparEl
     fn __getitem__(self) -> ref [self.graph[].get_valmem(self)] ValMem[config]:
         return self.graph[].get_valmem(self)
 
-    fn call(self) -> Call[FuncT, config, origin]:
-        return Call[FuncT, config, origin](self.graph, self[].call_idx)
+    fn call(self) -> Call[config, origin]:
+        return Call[config, origin](self.graph, self[].call_idx)
 
-    fn args(self, idx: Int) -> Val[AnyFunc, config, origin]:
+    fn args(self, idx: Int) -> Val[config, origin]:
         return self.call().args(idx)
 
     fn write_to[W: Writer](self, mut writer: W):
-        @parameter
-        if _type_is_eq[FuncT, AnyFunc]():
-
-            @parameter
-            for i in config.funcs.range():
-                if self[].call_idx.type == i:
-                    var view = self.view[config.funcs.Ts[i]]()
-                    return view.call().func.write_call(view.call(), writer)
-
-        else:
-            self.call().write_to(writer)
-
-    fn view[FT: Callable](self) -> Val[FT, config, origin]:
-        debug_assert(
-            self[].call_idx.type == config.funcs.func_to_idx[FT](),
-            "Function type mismatch",
-        )
-        return Val[FT, config](self.graph, self.idx)
+        writer.write(self.call())
+        if self[].out_idx != 0:
+            writer.write("[", Int(self[].out_idx), "]")
 
     fn as_val(
         self, graph: Graph, token: LockToken
-    ) -> Val[AnyFunc, graph.config, __origin_of(graph)]:
+    ) -> Val[graph.config, __origin_of(graph)]:
         if self.graph[] is graph:
-            return rebind[Val[AnyFunc, graph.config, __origin_of(graph)]](self)
+            return rebind[Val[graph.config, __origin_of(graph)]](self)
         else:
             debug_assert(False, "Graph mismatch")
-            return rebind[Val[AnyFunc, graph.config, __origin_of(graph)]](self)
+            return rebind[Val[graph.config, __origin_of(graph)]](self)

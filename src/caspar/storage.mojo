@@ -20,7 +20,7 @@ from sys.intrinsics import _type_is_eq
 struct SymbolStorage[size: Int, config: SymConfig, origin: ImmutableOrigin](
     Movable, Copyable
 ):
-    alias ElemT = Val[AnyFunc, config, origin]
+    alias ElemT = Val[config, origin]
 
     var data: IndexList[ValIdx, Self.size]
     var valid: BitSet[Self.size]
@@ -34,11 +34,11 @@ struct SymbolStorage[size: Int, config: SymConfig, origin: ImmutableOrigin](
         self.data = IndexList[ValIdx, Self.size]()
         self.valid = BitSet[Self.size]()
 
-    fn __getitem__(self, idx: Int) -> Val[AnyFunc, config, origin]:
+    fn __getitem__(self, idx: Int) -> Val[config, origin]:
         debug_assert(self.valid.test(idx), "Index not valid")
-        return Val[AnyFunc](self.graph, self.data[idx])
+        return Val(self.graph, self.data[idx])
 
-    fn __setitem__(mut self, idx: Int, owned value: Val[AnyFunc, config, origin]):
+    fn __setitem__(mut self, idx: Int, owned value: Val[config, origin]):
         debug_assert(not self.valid.test(idx), "Index not valid")
         self.valid.set(idx)
         self.data[idx] = value.idx
@@ -86,7 +86,7 @@ struct Vector[
     fn __init__(out self: Self, graph: Pointer[Graph[config], origin]):
         self.data = SymbolStorage[size, config, origin](graph)
 
-    fn __getitem__(self, idx: Int) -> Val[AnyFunc, config, origin]:
+    fn __getitem__(self, idx: Int) -> Val[config, origin]:
         return self.data[idx]
 
     fn __add__(self, other: Self.Like, out ret: Self.Undef):

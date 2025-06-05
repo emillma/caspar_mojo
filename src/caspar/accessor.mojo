@@ -26,7 +26,7 @@ trait Accessor(Copyable & Movable):
         ...
 
 
-struct Unique[name: String](Accessor):
+struct Unique[name: StaticString](Accessor):
     @staticmethod
     fn read[
         size: Int, config: SymConfig, origin: ImmutableOrigin

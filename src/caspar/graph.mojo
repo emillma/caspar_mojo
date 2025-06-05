@@ -51,15 +51,15 @@ struct Graph[config: SymConfig]:
         __disable_del token
 
     fn get_callmem[
-        FT: Callable, origin: ImmutableOrigin
-    ](ref [origin]self, call: Call[FT, config, origin]) -> ref [
-        self._core.callmem_get[FT](call.idx)
-    ] CallMem[FT, config]:
-        return self._core.callmem_get[FT](call.idx)
+        origin: ImmutableOrigin
+    ](ref [origin]self, call: Call[config, origin]) -> ref [
+        self._core.callmem_get(call.idx)
+    ] CallMem[config]:
+        return self._core.callmem_get(call.idx)
 
     fn get_valmem[
-        FT: Callable, origin: ImmutableOrigin
-    ](ref [origin]self, val: Val[FT, config, origin]) -> ref [
+        origin: ImmutableOrigin
+    ](ref [origin]self, val: Val[config, origin]) -> ref [
         self._core.valmem_get(val.idx)
     ] ValMem[config]:
         return self._core.valmem_get(val.idx)
@@ -70,7 +70,7 @@ struct Graph[config: SymConfig]:
         ref [origin]self,
         owned func: FT,
         owned *args: *ArgTs,
-        out ret: Call[FT, config, origin],
+        out ret: Call[config, origin],
     ):
         var token = self._aquire()
         var arglist = IndexList[ValIdx](capacity=len(args))
@@ -79,7 +79,7 @@ struct Graph[config: SymConfig]:
         for i in range(len(VariadicList(ArgTs))):
             arglist.append(args[i].as_val(self, token).idx)
 
-        ret = Call[FT, config, origin](
+        ret = Call[config, origin](
             Pointer(to=self),
             self._mut_core(token).callmem_add[FT](func, arglist^),
         )

@@ -1,7 +1,5 @@
 # from .callset import offsets
 from .named_index import (
-    FuncTypeIdx,
-    CallInstanceIdx,
     ValIdx,
     OutIdx,
     ArgIdx,
@@ -10,3 +8,4 @@ from .named_index import (
     RegIdx,
 )
 from .callset import CallSet
+from .funcvariant import FuncVariant
