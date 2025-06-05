@@ -25,26 +25,24 @@ struct Call[config: SymConfig, origin: ImmutableOrigin]:
     ) -> ref [self.graph[].get_callmem(self)] CallMem[config]:
         return self.graph[].get_callmem(self)
 
-    fn args(self, idx: ValIdx) -> Val[config, origin]:
+    fn arg(self, idx: ValIdx) -> Val[config, origin]:
         return Val[config, origin](self.graph, self[].args[idx])
 
-    fn __getattr__[
-        name: StringLiteral["func".value]
-    ](self) -> ref [self[].func] config.FuncVariant:
+    fn func(self) -> ref [self[].func] config.FuncVariant:
         return self[].func
 
     fn __getitem__(self, idx: Int) -> Val[config, origin]:
-        return self.outs(idx)
+        return self.out(idx)
 
-    fn outs(self, idx: Int) -> Val[config, origin]:
+    fn out(self, idx: Int) -> Val[config, origin]:
         return Val[config, origin](self.graph, self[].outs[idx])
 
     fn write_to[W: Writer](self, mut writer: W):
         @parameter
         for i in range(len(VariadicList(config.funcs.Ts))):
-            if i == Int(self.func.type_idx()):
+            if i == Int(self.func().type_idx()):
                 alias T = config.funcs.Ts[i]
-                self.func[T].write_call(self, writer)
+                self.func()[T].write_call(self, writer)
 
 
 trait CasparElement(Writable & Movable & Copyable):
@@ -74,8 +72,8 @@ struct Val[config: SymConfig, origin: ImmutableOrigin](CasparElement):
     fn call(self) -> Call[config, origin]:
         return Call[config, origin](self.graph, self[].call_idx)
 
-    fn args(self, idx: Int) -> Val[config, origin]:
-        return self.call().args(idx)
+    # fn args(self, idx: Int) -> Val[config, origin]:
+    #     return self.call.args(idx)
 
     fn write_to[W: Writer](self, mut writer: W):
         writer.write(self.call())

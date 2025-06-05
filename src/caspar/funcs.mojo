@@ -125,7 +125,7 @@ struct WriteValue[size: Int = 1](Callable):
     fn write_call[conf: SymConfig, W: Writer](self, call: Call[conf], mut writer: W):
         writer.write("Write(", self.argname, ", ")
         for i in range(size):
-            writer.write(call.args(i))
+            writer.write(call.arg(i))
             if i < size - 1:
                 writer.write(", ")
         writer.write(")")
@@ -154,7 +154,7 @@ struct Add(Callable):
     alias DataT = NoneType
 
     fn write_call[conf: SymConfig, W: Writer](self, call: Call[conf], mut writer: W):
-        writer.write(call.args(0), " + ", call.args(1))
+        writer.write(call.arg(0), " + ", call.arg(1))
 
     fn __hash__(self) -> UInt:
         return Self.info.hash
@@ -180,7 +180,7 @@ struct Mul(Callable):
     alias DataT = NoneType
 
     fn write_call[conf: SymConfig, W: Writer](self, call: Call[conf], mut writer: W):
-        writer.write(call.args(0), " * ", call.args(1))
+        writer.write(call.arg(0), " * ", call.arg(1))
 
     fn __hash__(self) -> UInt:
         return Self.info.hash

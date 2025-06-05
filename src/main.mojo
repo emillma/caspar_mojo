@@ -29,6 +29,7 @@ fn foo():
     var x = Vector[4, reader = Unique["x"]](graph)
     var y = Vector[4, reader = Unique["y"]](graph)
     var z = Vector[4, writer = Unique["z"]](x + y)
+    var foo = z
     print(z[3])
     var kernel = KernelData[SymConfigDefault](z)
 
@@ -36,7 +37,6 @@ fn foo():
 fn main() raises:
     foo()
     alias ftype = Variant[funcs.Add, funcs.Symbol]
-    var a = SymConfigDefault.FuncVariant(funcs.StoreFloat(0.1))
     # print(a.take[funcs.StoreFloat]().value)
     # print(sizeof[StaticString]())
     # var x = Vector[4, read=Unique]("x", graph)
