@@ -4,6 +4,7 @@ from caspar.sysconfig import SymConfig
 from compile.reflection import get_type_name
 from utils.static_tuple import StaticTuple
 from memory import UnsafePointer
+from .storage import Storable
 
 
 trait Context:

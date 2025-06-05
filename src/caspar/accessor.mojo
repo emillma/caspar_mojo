@@ -16,33 +16,21 @@ trait Accessor(Copyable & Movable):
     @staticmethod
     fn read[
         size: Int, config: SymConfig, origin: ImmutableOrigin
-    ](
-        name: String,
-        ref [origin]graph: Graph[config],
-        out ret: SymbolStorage[size, config, origin],
-    ):
+    ](ref [origin]graph: Graph[config], out ret: SymbolStorage[size, config, origin],):
         ...
 
     @staticmethod
     fn write[
         size: Int, config: SymConfig, origin: ImmutableOrigin
-    ](
-        name: String,
-        ref [origin]graph: Graph,
-        storage: SymbolStorage[size, config, origin],
-    ):
+    ](storage: SymbolStorage[size, config, origin],):
         ...
 
 
-struct Unique(Accessor):
+struct Unique[name: String](Accessor):
     @staticmethod
     fn read[
         size: Int, config: SymConfig, origin: ImmutableOrigin
-    ](
-        name: String,
-        ref [origin]graph: Graph[config],
-        out ret: SymbolStorage[size, config, origin],
-    ):
+    ](ref [origin]graph: Graph[config], out ret: SymbolStorage[size, config, origin],):
         ret = SymbolStorage[size, config, origin](graph)
         for i in range(size):
             ret[i] = graph.add_call(funcs.ReadValue[1](name, i))[0]
@@ -50,32 +38,20 @@ struct Unique(Accessor):
     @staticmethod
     fn write[
         size: Int, config: SymConfig, origin: ImmutableOrigin
-    ](
-        name: String,
-        ref [origin]graph: Graph,
-        storage: SymbolStorage[size, config, origin],
-    ):
+    ](storage: SymbolStorage[size, config, origin],):
         for i in range(size):
-            _ = graph.add_call(funcs.WriteValue[1](name, i), storage[i])
+            _ = storage.graph[].add_call(funcs.WriteValue[1](name, i), storage[i])
 
 
 struct UnDefined(Accessor):
     @staticmethod
     fn read[
         size: Int, config: SymConfig, origin: ImmutableOrigin
-    ](
-        name: String,
-        ref [origin]graph: Graph[config],
-        out ret: SymbolStorage[size, config, origin],
-    ):
+    ](ref [origin]graph: Graph[config], out ret: SymbolStorage[size, config, origin],):
         ret = SymbolStorage[size, config, origin](graph)
 
     @staticmethod
     fn write[
         size: Int, config: SymConfig, origin: ImmutableOrigin
-    ](
-        name: String,
-        ref [origin]graph: Graph,
-        storage: SymbolStorage[size, config, origin],
-    ):
+    ](storage: SymbolStorage[size, config, origin],):
         constrained[False, "Undefined accessor cannot write symbols"]()

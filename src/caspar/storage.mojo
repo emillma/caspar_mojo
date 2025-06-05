@@ -44,9 +44,13 @@ struct SymbolStorage[size: Int, config: SymConfig, origin: ImmutableOrigin](
         self.data[idx] = value.idx
 
 
-trait Storable:
-    alias reader: Accessor
-    alias writer: Accessor
+trait Storable(Movable, Copyable):
+    alias size_: Int
+    alias reader_: Accessor
+    alias writer_: Accessor
+
+    fn store_to(self, graph: Graph):
+        ...
 
 
 struct Vector[
@@ -54,13 +58,14 @@ struct Vector[
     config: SymConfig,
     origin: ImmutableOrigin,
     *,
-    read: Accessor = UnDefined,
-    write: Accessor = UnDefined,
-](Movable, Copyable):
-    alias reader = read
-    alias writer = read
-    alias Undef = Vector[size, config, origin, read=UnDefined, write=UnDefined]
-    alias Like = Vector[size, config, origin, read=_, write=_]
+    reader: Accessor = UnDefined,
+    writer: Accessor = UnDefined,
+](Storable):
+    alias size_ = size
+    alias reader_ = reader
+    alias writer_ = writer
+    alias Undef = Vector[size, config, origin, reader=UnDefined, writer=UnDefined]
+    alias Like = Vector[size, config, origin, reader=_, writer=_]
     var data: SymbolStorage[size, config, origin]
 
     @implicit
@@ -71,12 +76,12 @@ struct Vector[
         self.data = other.data^
         __disable_del other
 
-    fn __init__(out self: Self, name: String, ref [origin]graph: Graph[config]):
+    fn __init__(out self: Self, ref [origin]graph: Graph[config]):
         @parameter
         if _type_is_eq[Self.reader, UnDefined]():
             self.data = SymbolStorage[size](graph)
         else:
-            self.data = Self.reader.read[size=size](name, graph)
+            self.data = Self.reader.read[size=size](graph)
 
     fn __init__(out self: Self, graph: Pointer[Graph[config], origin]):
         self.data = SymbolStorage[size, config, origin](graph)
@@ -84,9 +89,12 @@ struct Vector[
     fn __getitem__(self, idx: Int) -> Val[AnyFunc, config, origin]:
         return self.data[idx]
 
-    fn __add__(self, other: Self.Like, out ret: Self.Like):
-        ret = Self.Like(self.data.graph)
+    fn __add__(self, other: Self.Like, out ret: Self.Undef):
+        ret = Self.Undef(self.data.graph)
         for i in range(size):
             ret.data[i] = self.data.graph[].add_call(
                 funcs.Add(), self.data[i], other.data[i]
             )[0]
+
+    fn store_to(self, graph: Graph):
+        ...
