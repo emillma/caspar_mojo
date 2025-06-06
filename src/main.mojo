@@ -26,17 +26,41 @@ from caspar.calliter import CallChildIter
 
 
 fn foo() -> KernelData[SymConfigDefault]:
-    var a = funcs.ReadValue[1]("hello", 0)
-    var b = funcs.ReadValue[1]("hello", 0)
     var graph = Graph[SymConfigDefault]()
     var x = Vector[4, reader = Unique["x"]](graph)
     var y = Vector[4, reader = Unique["y"]](graph)
-    Vector[4, writer = Unique["z"]](x + y).write()
+    var z = Vector[4, writer = Unique["z"]](graph)
+    # z^.discard()
+    # print("slice_size", len(z[:]))
+    # alias foo = __type_of((0:2))
     return KernelData[SymConfigDefault](graph^)
-    # return kernel^
+
+
+fn slice_size(size: Int, indices: Tuple[Int, Int, Int], out ret: Int):
+    var start, end, step = indices
+    ret = (end - start + step - 1) // step
+    debug_assert(ret >= 0, "Slice size has to be non-negative")
+
+
+struct SliceInfo[target_size: Int, slice: Slice]:
+    alias indices = slice.indices(target_size)
+    alias size = slice_size(target_size, Self.indices)
+
+
+@value
+struct MyVec[size: Int]:
+    fn __getitem__[
+        sl: Slice,
+    ](self, out ret: MyVec[size = SliceInfo[size, sl].size]):
+        ret = MyVec[size = SliceInfo[size, sl].size]()
 
 
 fn main() raises:
+    var a = MyVec[10]()
+    var b = a.__getitem__[::2]()
+    print(b.size)  # prints 5
+    # var c = a[::2] # error: invalid call to '__getitem__': expected at most 1 positional argument, got 2
+
     kernel[foo]()
     # print(a.take[funcs.StoreFloat]().value)
     # print(sizeof[StaticString]())

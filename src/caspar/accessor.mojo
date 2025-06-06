@@ -3,7 +3,7 @@ from caspar.collections import CallSet
 from caspar.funcs import AnyFunc
 from caspar.graph import Graph
 from caspar.graph_core import GraphCore
-from caspar.storage import Storage, SymbolStorage
+from caspar.storage import SymbolStorage
 from caspar.sysconfig import SymConfigDefault, SymConfig
 from caspar.val import Val, Call, CasparElement
 from collections import BitSet
@@ -47,11 +47,12 @@ struct UnDefined(Accessor):
     @staticmethod
     fn read[
         size: Int, config: SymConfig, origin: ImmutableOrigin
-    ](ref [origin]graph: Graph[config], out ret: SymbolStorage[size, config, origin],):
+    ](ref [origin]graph: Graph[config], out ret: SymbolStorage[size, config, origin]):
+        constrained[False, "Undefined accessor cannot write symbols"]()
         ret = SymbolStorage[size, config, origin](graph)
 
     @staticmethod
     fn write[
         size: Int, config: SymConfig, origin: ImmutableOrigin
-    ](storage: SymbolStorage[size, config, origin],):
+    ](storage: SymbolStorage[size, config, origin]):
         constrained[False, "Undefined accessor cannot write symbols"]()
