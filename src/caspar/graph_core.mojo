@@ -20,15 +20,18 @@ from .utils import multihash
 alias BytePtr = UnsafePointer[Byte]
 
 
-struct ValMem[config: SymConfig](Movable, Copyable):
-    var call_idx: CallIdx
+struct ValMem[config: SymConfig](Movable, Copyable, Hashable):
+    var call: CallIdx
     var out_idx: OutIdx
     var uses: Dict[CallIdx, IndexList[ArgIdx]]
 
-    fn __init__(out self, call_idx: CallIdx, out_idx: OutIdx):
-        self.call_idx = call_idx
+    fn __init__(out self, call: CallIdx, out_idx: OutIdx):
+        self.call = call
         self.out_idx = out_idx
         self.uses = Dict[CallIdx, IndexList[ArgIdx]]()
+
+    fn __hash__(self) -> UInt:
+        return multihash(self.call, self.out_idx)
 
 
 @value
@@ -53,11 +56,14 @@ struct CallFlags:
         else:
             self.data &= ~(1 << idx)
 
+    fn __eq__(self, other: Self) -> Bool:
+        return self.data == other.data
+
 
 struct CallMem[config: SymConfig](Movable, ExplicitlyCopyable, Hashable):
     var args: IndexList[ValIdx]
     var outs: IndexList[ValIdx]
-    var hash: UInt64
+    var hash: UInt
     var flags: CallFlags
     var func: config.FuncVariant
 
@@ -65,10 +71,9 @@ struct CallMem[config: SymConfig](Movable, ExplicitlyCopyable, Hashable):
         constrained[config.funcs.supports[FT](), "Type not supported"]()
         debug_assert(len(args) == FT.info.n_args or FT.info.n_args == -1)
         self.args = args^
-        self.hash = hash(func) + hash(self.args)
         self.func = func^
         self.outs = IndexList[ValIdx](capacity=FT.info.n_outs)
-
+        self.hash = multihash(self.func, self.args)
         self.flags = CallFlags()
 
     fn copy(self, out ret: Self):
@@ -79,14 +84,10 @@ struct CallMem[config: SymConfig](Movable, ExplicitlyCopyable, Hashable):
         __mlir_op.`lit.ownership.mark_initialized`(__get_mvalue_as_litref(ret))
 
     fn __hash__(self) -> UInt:
-        return multihash(hash(self.func), self.args)
+        return self.hash
 
     fn same_call(self, other: Self) -> Bool:
-        return (
-            self.hash == other.hash
-            and self.func == other.func
-            and self.args == other.args
-        )
+        return self.func == other.func and self.args == other.args
 
 
 struct GraphCore[config: SymConfig](Movable):
@@ -100,17 +101,15 @@ struct GraphCore[config: SymConfig](Movable):
         self.vals = List[ValMem[config]]()
         self.calls = CallSet[config]()
 
-    fn valmem_get[
-        origin: Origin
-    ](ref [origin]self, idx: ValIdx) -> ref [self.vals[idx]] ValMem[config]:
-        return self.vals[idx]
-
-    fn valmem_add(mut self, call_idx: CallIdx, out_idx: OutIdx, out ret: ValIdx):
+    fn valmem_add(mut self, call: CallIdx, out_idx: OutIdx, out ret: ValIdx):
         ret = len(self.vals)
-        self.vals.append(ValMem[config](call_idx=call_idx, out_idx=out_idx))
+        self.vals.append(ValMem[config](call=call, out_idx=out_idx))
 
-    fn callmem_get(ref self, idx: CallIdx) -> ref [self.calls[idx]] CallMem[config]:
+    fn __getitem__(ref self, idx: CallIdx) -> ref [self.calls[idx]] CallMem[config]:
         return self.calls[idx]
+
+    fn __getitem__(ref self, idx: ValIdx) -> ref [self.vals[idx]] ValMem[config]:
+        return self.vals[idx]
 
     fn callmem_add[
         FT: Callable
@@ -122,9 +121,7 @@ struct GraphCore[config: SymConfig](Movable):
 
         for i in range(len(call.args)):
             try:
-                self.valmem_get(call.args[i]).uses.setdefault(
-                    ret, IndexList[ArgIdx]()
-                ).append(i)
+                self[call.args[i]].uses.setdefault(ret, IndexList[ArgIdx]()).append(i)
             except KeyError:
                 debug_assert(False)
         if not idx.found:

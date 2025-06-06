@@ -23,6 +23,7 @@ struct KernelData[config: SymConfig]:
 
     fn __init__[*Ts: Storable](out self, *outputs: *Ts):
         self.graph = Graph[config]()
+        var valmap = Dict[ValIdx, ValIdx]()
 
         # @parameter
         # for i in range(len(VariadicList(Ts))):

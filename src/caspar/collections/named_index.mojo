@@ -182,7 +182,7 @@ struct _IndexListIter[ElemT: IndexT, stack_size: Int, origin: Origin](
     Copyable, Movable
 ):
     var index: Int
-    var src: Pointer[type = IndexList[ElemT, stack_size], origin=origin]
+    var src: Pointer[IndexList[ElemT, stack_size], origin]
 
     fn __init__(out self, ref [origin]list: IndexList[ElemT, stack_size]):
         self.index = 0

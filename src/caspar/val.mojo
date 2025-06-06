@@ -8,7 +8,7 @@ from sys.intrinsics import _type_is_eq
 
 @value
 @register_passable
-struct Call[config: SymConfig, origin: ImmutableOrigin]:
+struct Call[config: SymConfig, origin: ImmutableOrigin](KeyElement):
     var graph: Pointer[Graph[config], origin]
     var idx: CallIdx
 
@@ -44,6 +44,15 @@ struct Call[config: SymConfig, origin: ImmutableOrigin]:
                 alias T = config.funcs.Ts[i]
                 self.func()[T].write_call(self, writer)
 
+    fn __eq__(self, other: Self) -> Bool:
+        return self.graph == other.graph and self.idx == other.idx
+
+    fn __ne__(self, other: Self) -> Bool:
+        return not self == other
+
+    fn __hash__(self) -> UInt:
+        return hash(self[])
+
 
 trait CasparElement(Writable & Movable & Copyable):
     fn as_val(
@@ -70,7 +79,7 @@ struct Val[config: SymConfig, origin: ImmutableOrigin](CasparElement):
         return self.graph[].get_valmem(self)
 
     fn call(self) -> Call[config, origin]:
-        return Call[config, origin](self.graph, self[].call_idx)
+        return Call[config, origin](self.graph, self[].call)
 
     # fn args(self, idx: Int) -> Val[config, origin]:
     #     return self.call.args(idx)
@@ -88,3 +97,12 @@ struct Val[config: SymConfig, origin: ImmutableOrigin](CasparElement):
         else:
             debug_assert(False, "Graph mismatch")
             return rebind[Val[graph.config, __origin_of(graph)]](self)
+
+    fn __eq__(self, other: Self) -> Bool:
+        return self.graph == other.graph and self.idx == other.idx
+
+    fn __ne__(self, other: Self) -> Bool:
+        return not self == other
+
+    fn __hash__(self) -> UInt:
+        return hash(self[])

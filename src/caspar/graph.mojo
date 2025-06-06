@@ -53,16 +53,16 @@ struct Graph[config: SymConfig]:
     fn get_callmem[
         origin: ImmutableOrigin
     ](ref [origin]self, call: Call[config, origin]) -> ref [
-        self._core.callmem_get(call.idx)
+        self._core[call.idx]
     ] CallMem[config]:
-        return self._core.callmem_get(call.idx)
+        return self._core[call.idx]
 
     fn get_valmem[
         origin: ImmutableOrigin
-    ](ref [origin]self, val: Val[config, origin]) -> ref [
-        self._core.valmem_get(val.idx)
-    ] ValMem[config]:
-        return self._core.valmem_get(val.idx)
+    ](ref [origin]self, val: Val[config, origin]) -> ref [self._core[val.idx]] ValMem[
+        config
+    ]:
+        return self._core[val.idx]
 
     fn add_call[
         FT: Callable, *ArgTs: CasparElement, origin: ImmutableOrigin

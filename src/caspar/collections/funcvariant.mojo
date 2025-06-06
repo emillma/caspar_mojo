@@ -12,19 +12,19 @@ struct FuncVariant[*Ts: Callable](Copyable, Movable, ExplicitlyCopyable, KeyElem
     var hash: UInt
     var _impl: __mlir_type[`!kgen.variant<[rebind(:`, __type_of(Ts), ` `, Ts, `)]>`]
 
-    fn __init__(out self, *, unsafe_uninitialized: ()):
-        __mlir_op.`lit.ownership.mark_initialized`(__get_mvalue_as_litref(self))
+    fn __init__(out self, hashval: UInt, *, unsafe_uninitialized: Bool):
+        self.hash = hashval
+        __mlir_op.`lit.ownership.mark_initialized`(__get_mvalue_as_litref(self._impl))
 
     @implicit
     fn __init__[T: Callable](out self, owned value: T):
-        __mlir_op.`lit.ownership.mark_initialized`(__get_mvalue_as_litref(self))
         alias idx = Self.type_idx_of[T]()
-        self.hash = hash(value)
+        self = Self(hash(value), unsafe_uninitialized=True)
         self.type_idx() = idx
         self._get_ptr[T]().init_pointee_move(value^)
 
     fn copy(self, out copy: Self):
-        copy = Self(unsafe_uninitialized=())
+        copy = Self(self.hash, unsafe_uninitialized=True)
         copy.type_idx() = self.type_idx()
 
         @parameter
@@ -38,7 +38,8 @@ struct FuncVariant[*Ts: Callable](Copyable, Movable, ExplicitlyCopyable, KeyElem
         self = other.copy()
 
     fn __moveinit__(out self, owned other: Self):
-        __mlir_op.`lit.ownership.mark_initialized`(__get_mvalue_as_litref(self))
+        self = Self(other.hash, unsafe_uninitialized=True)
+
         self.type_idx() = other.type_idx()
 
         @parameter

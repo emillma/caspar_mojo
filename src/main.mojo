@@ -22,15 +22,20 @@ from compile.reflection import get_type_name
 from caspar.storage import Storable, Vector
 from caspar.accessor import Accessor, Unique
 from utils import Variant
+from caspar.calliter import CallChildIter
 
 
 fn foo():
+    var a = funcs.ReadValue[1]("hello", 0)
+    var b = funcs.ReadValue[1]("hello", 0)
+    print(hash(a) == hash(b))
     var graph = Graph[SymConfigDefault]()
     var x = Vector[4, reader = Unique["x"]](graph)
-    var y = Vector[4, reader = Unique["y"]](graph)
+    var y = Vector[4, reader = Unique["x"]](graph)
     var z = Vector[4, writer = Unique["z"]](x + y)
-    var foo = z
-    print(z[3])
+    for child in CallChildIter(z[1].call()):
+        print(child)
+    # print(z[2].call())
     var kernel = KernelData[SymConfigDefault](z)
 
 

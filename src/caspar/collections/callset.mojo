@@ -64,7 +64,7 @@ struct CallSet[config: SymConfig](Movable, Sized):
                     return SearchResult(True, slot, index)
             self._next_index_slot(slot, perturb)
 
-    fn _next_index_slot(self, mut slot: UInt64, mut perturb: UInt64):
+    fn _next_index_slot(self, mut slot: UInt, mut perturb: UInt):
         alias PERTURB_SHIFT = 5
         perturb >>= PERTURB_SHIFT
         slot = ((5 * slot) + Int(perturb + 1)) & (self.capacity - 1)

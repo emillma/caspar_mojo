@@ -94,7 +94,7 @@ struct ReadValue[size: Int = 1](Callable):
     var offset: Int
 
     fn write_call[conf: SymConfig, W: Writer](self, call: Call[conf], mut writer: W):
-        writer.write(self.argname)
+        writer.write(self.argname, self.offset)
 
     fn __hash__(self) -> UInt:
         return multihash(Self.info.hash, self.argname, self.offset)
@@ -123,7 +123,7 @@ struct WriteValue[size: Int = 1](Callable):
     var offset: Int
 
     fn write_call[conf: SymConfig, W: Writer](self, call: Call[conf], mut writer: W):
-        writer.write("Write(", self.argname, ", ")
+        writer.write("Write(", self.argname, self.offset, ", ")
         for i in range(size):
             writer.write(call.arg(i))
             if i < size - 1:
