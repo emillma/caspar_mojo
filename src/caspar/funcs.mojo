@@ -6,6 +6,11 @@ from utils.static_tuple import StaticTuple
 from .context import Context
 from .utils import multihash
 from memory import UnsafePointer
+from caspar.collections import (
+    ValIdx,
+    OutIdx,
+    IndexList,
+)
 
 # from caspar.utils import hash
 alias Stack = StaticTuple[Float32, _]
@@ -49,10 +54,16 @@ trait Callable(Copyable, Movable, KeyElement):
     ](self, call: Call[config], mut writer: W):
         ...
 
+    fn data(self) -> Self.DataT:
+        ...
+
     @always_inline
     @staticmethod
     fn evaluate[
-        CT: Context, //, args: List[Int], outs: List[Int], data: Self.DataT
+        CT: Context, //,
+        args: IndexList[ValIdx],
+        outs: IndexList[ValIdx],
+        data: Self.DataT,
     ](mut context: CT):
         ...
 
@@ -61,8 +72,8 @@ trait Callable(Copyable, Movable, KeyElement):
 @register_passable("trivial")
 struct Symbol(Callable):
     alias info = FuncInfo("Symbol", 0, 1)
-    alias DataT = StaticString
-    var name: Self.DataT
+    alias DataT = NoneType
+    var name: StaticString
 
     fn write_call[conf: SymConfig, W: Writer](self, call: Call[conf], mut writer: W):
         writer.write(self.name)
@@ -76,19 +87,25 @@ struct Symbol(Callable):
     fn __ne__(self, other: Self) -> Bool:
         return not self.__eq__(other)
 
+    fn data(self) -> Self.DataT:
+        return
+
     @always_inline
     @staticmethod
     fn evaluate[
-        CT: Context, //, args: List[Int], outs: List[Int], data: Self.DataT
+        CT: Context, //,
+        args: IndexList[ValIdx],
+        outs: IndexList[ValIdx],
+        data: Self.DataT,
     ](mut context: CT):
-        ...
+        constrained[False]()
 
 
 @value
 @register_passable("trivial")
 struct ReadValue[size: Int = 1](Callable):
     alias info = FuncInfo("ReadValue" + String(size), 0, size)
-    alias DataT = Tuple[Int, Int]
+    alias DataT = Tuple[StaticString, Int]
 
     var argname: StaticString
     var offset: Int
@@ -105,12 +122,20 @@ struct ReadValue[size: Int = 1](Callable):
     fn __ne__(self, other: Self) -> Bool:
         return not self.__eq__(other)
 
+    fn data(self) -> Self.DataT:
+        return (self.argname, self.offset)
+
     @always_inline
     @staticmethod
     fn evaluate[
-        CT: Context, //, args: List[Int], outs: List[Int], data: Self.DataT
+        CT: Context, //,
+        args: IndexList[ValIdx],
+        outs: IndexList[ValIdx],
+        data: Self.DataT,
     ](mut context: CT):
-        ...
+        @parameter
+        for i in range(Self.size):
+            context.set[outs[i]](context.arg[data[0]]().offset(data[1])[])
 
 
 @value
@@ -139,12 +164,20 @@ struct WriteValue[size: Int = 1](Callable):
     fn __ne__(self, other: Self) -> Bool:
         return not self.__eq__(other)
 
+    fn data(self) -> Self.DataT:
+        return (self.argname, self.offset)
+
     @always_inline
     @staticmethod
     fn evaluate[
-        CT: Context, //, args: List[Int], outs: List[Int], data: Self.DataT
+        CT: Context, //,
+        args: IndexList[ValIdx],
+        outs: IndexList[ValIdx],
+        data: Self.DataT,
     ](mut context: CT):
-        ...
+        @parameter
+        for i in range(Self.size):
+            context.arg[data[0]]().offset(data[1])[] = context.get[args[i]]()
 
 
 @value
@@ -165,12 +198,18 @@ struct Add(Callable):
     fn __ne__(self, other: Self) -> Bool:
         return not self.__eq__(other)
 
+    fn data(self) -> Self.DataT:
+        return
+
     @always_inline
     @staticmethod
     fn evaluate[
-        CT: Context, //, args: List[Int], outs: List[Int], data: Self.DataT
+        CT: Context, //,
+        args: IndexList[ValIdx],
+        outs: IndexList[ValIdx],
+        data: Self.DataT,
     ](mut context: CT):
-        ...
+        context.set[outs[0]](context.get[args[0]]() + context.get[args[1]]())
 
 
 @value
@@ -191,10 +230,16 @@ struct Mul(Callable):
     fn __ne__(self, other: Self) -> Bool:
         return not self.__eq__(other)
 
+    fn data(self) -> Self.DataT:
+        return
+
     @always_inline
     @staticmethod
     fn evaluate[
-        CT: Context, //, args: List[Int], outs: List[Int], data: Self.DataT
+        CT: Context, //,
+        args: IndexList[ValIdx],
+        outs: IndexList[ValIdx],
+        data: Self.DataT,
     ](mut context: CT):
         ...
 
@@ -218,10 +263,16 @@ struct StoreFloat(Callable):
     fn __ne__(self, other: Self) -> Bool:
         return not self.__eq__(other)
 
+    fn data(self) -> Self.DataT:
+        return self.value
+
     @always_inline
     @staticmethod
     fn evaluate[
-        CT: Context, //, args: List[Int], outs: List[Int], data: Self.DataT
+        CT: Context, //,
+        args: IndexList[ValIdx],
+        outs: IndexList[ValIdx],
+        data: Self.DataT,
     ](mut context: CT):
         ...
 
@@ -244,10 +295,16 @@ struct StoreOne(Callable):
     fn __ne__(self, other: Self) -> Bool:
         return not self.__eq__(other)
 
+    fn data(self) -> Self.DataT:
+        return
+
     @always_inline
     @staticmethod
     fn evaluate[
-        CT: Context, //, args: List[Int], outs: List[Int], data: Self.DataT
+        CT: Context, //,
+        args: IndexList[ValIdx],
+        outs: IndexList[ValIdx],
+        data: Self.DataT,
     ](mut context: CT):
         ...
 
@@ -270,10 +327,16 @@ struct StoreZero(Callable):
     fn __ne__(self, other: Self) -> Bool:
         return not self.__eq__(other)
 
+    fn data(self) -> Self.DataT:
+        return
+
     @always_inline
     @staticmethod
     fn evaluate[
-        CT: Context, //, args: List[Int], outs: List[Int], data: Self.DataT
+        CT: Context, //,
+        args: IndexList[ValIdx],
+        outs: IndexList[ValIdx],
+        data: Self.DataT,
     ](mut context: CT):
         ...
 
@@ -299,9 +362,15 @@ struct AnyFunc(Callable):
         constrained[False, "AnyFunc should not be used as a function type"]()
         return not self.__eq__(other)
 
+    fn data(self) -> Self.DataT:
+        return
+
     @always_inline
     @staticmethod
     fn evaluate[
-        CT: Context, //, args: List[Int], outs: List[Int], data: Self.DataT
+        CT: Context, //,
+        args: IndexList[ValIdx],
+        outs: IndexList[ValIdx],
+        data: Self.DataT,
     ](mut context: CT):
         constrained[False, "AnyFunc should not be used as a function type"]()

@@ -27,14 +27,14 @@ struct CallSet[config: SymConfig](Movable, Sized):
     var entries: UnsafePointer[CallMem[config]]
     var stride: Int
 
-    fn __init__(out self):
+    fn __init__(out self, capacity: Int = 128):
         constrained[sizeof[Self]() == sizeof[CallSet[config]]()]()
-        alias INITIAL_CAPACITY = 200
+        debug_assert(capacity.is_power_of_two())
 
-        self.entries = UnsafePointer[Self.CallT].alloc(INITIAL_CAPACITY)
-        self.capacity = INITIAL_CAPACITY
+        self.entries = UnsafePointer[Self.CallT].alloc(capacity)
+        self.capacity = capacity
         self.size = 0
-        self.index = _DictIndex(INITIAL_CAPACITY)
+        self.index = _DictIndex(capacity)
         self.stride = sizeof[Self.CallT]()
 
     @implicit

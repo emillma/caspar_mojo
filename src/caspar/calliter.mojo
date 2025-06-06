@@ -5,20 +5,24 @@ from caspar.val import Val, Call
 from collections import Set
 
 
-struct CallChildIter[config: SymConfig, origin: ImmutableOrigin](Copyable, Movable):
+struct CallChildIter[config: SymConfig, origin: ImmutableOrigin](Movable, Copyable):
     var graph: Pointer[Graph[config], origin]
     var tracked: Set[CallIdx]
     var stack: List[CallIdx]
 
-    fn __init__(
-        out self,
-        start: Call[config, origin],
-        tracked: Optional[Set[CallIdx]] = None,
-    ):
+    fn __init__(out self, start: Call[config, origin]):
         self.graph = start.graph
-        self.tracked = tracked.value() if tracked else Set[CallIdx]()
         self.stack = [start.idx]
-        self.tracked.add(start.idx)
+        self.tracked = {start.idx}
+
+    fn __init__(out self, starts: List[Call[config, origin]]):
+        self.graph = starts[0].graph
+        self.tracked = {}
+        self.stack = []
+        for ref start in starts:
+            if start.idx not in self.tracked:
+                self.stack.append(start.idx)
+                self.tracked.add(start.idx)
 
     fn __iter__(self) -> Self:
         return self

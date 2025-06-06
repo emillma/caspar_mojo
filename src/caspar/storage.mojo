@@ -3,7 +3,7 @@ from caspar.graph import Graph
 from caspar.graph_core import GraphCore
 from caspar.val import Val, Call, CasparElement
 from caspar.funcs import AnyFunc
-from collections import BitSet
+from collections import BitSet, Set
 from caspar.accessor import Accessor, UnDefined
 
 # from caspar.storage import ValStorage
@@ -13,8 +13,9 @@ from memory import UnsafePointer
 # from caspar.val import Val, GraphRef
 from caspar.sysconfig import SymConfigDefault, SymConfig
 from caspar.collections import ValIdx, IndexList
-from caspar.collections import CallSet
+from caspar.collections import CallSet, CallIdx, ValIdx
 from sys.intrinsics import _type_is_eq
+from caspar.calliter import CallChildIter
 
 
 struct SymbolStorage[size: Int, config: SymConfig, origin: ImmutableOrigin](
@@ -22,7 +23,7 @@ struct SymbolStorage[size: Int, config: SymConfig, origin: ImmutableOrigin](
 ):
     alias ElemT = Val[config, origin]
 
-    var data: IndexList[ValIdx, Self.size]
+    var indices: IndexList[ValIdx, Self.size]
     var valid: BitSet[Self.size]
     var graph: Pointer[Graph[config], origin]
 
@@ -31,17 +32,17 @@ struct SymbolStorage[size: Int, config: SymConfig, origin: ImmutableOrigin](
 
     fn __init__(out self: Self, graph: Pointer[Graph[config], origin]):
         self.graph = graph
-        self.data = IndexList[ValIdx, Self.size]()
+        self.indices = IndexList[ValIdx, Self.size]()
         self.valid = BitSet[Self.size]()
 
     fn __getitem__(self, idx: Int) -> Val[config, origin]:
         debug_assert(self.valid.test(idx), "Index not valid")
-        return Val(self.graph, self.data[idx])
+        return Val(self.graph, self.indices[idx])
 
     fn __setitem__(mut self, idx: Int, owned value: Val[config, origin]):
         debug_assert(not self.valid.test(idx), "Index not valid")
         self.valid.set(idx)
-        self.data[idx] = value.idx
+        self.indices[idx] = value.idx
 
 
 trait Storable(Movable, Copyable):
@@ -49,7 +50,7 @@ trait Storable(Movable, Copyable):
     alias reader_: Accessor
     alias writer_: Accessor
 
-    fn store_to(self, graph: Graph):
+    fn copy_to(self, graph: Graph):
         ...
 
 
@@ -96,5 +97,19 @@ struct Vector[
                 funcs.Add(), self.data[i], other.data[i]
             )[0]
 
-    fn store_to(self, graph: Graph):
+    fn write(self):
+        self.writer.write(self.data)
+
+    fn copy_to(self, other_graph: Graph):
         ...
+        # ref graph = self.data.graph
+        # var callmap = Dict[CallIdx, CallIdx]()
+        # var valmat = Dict[ValIdx, ValIdx]()
+        # var added = Set[CallIdx]()
+        # for idx in self.data.indices:
+        #     if idx not in added:
+        #         added.add(idx)
+        # var stack = [graph[]._core[idx].call for idx in self.data.indices]
+
+        # for call in CallChildIter(calls^):
+        #     print(call)

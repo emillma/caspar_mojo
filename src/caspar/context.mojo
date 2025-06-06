@@ -1,33 +1,109 @@
-from .graph_core import GraphCore, CallIdx, ValIdx
 from .collections import RegIdx
-from caspar.sysconfig import SymConfig
-from compile.reflection import get_type_name
-from utils.static_tuple import StaticTuple
-from memory import UnsafePointer
-from .storage import Storable
 from .graph import Graph
-
-
-trait Context:
-    ...
-
-
-struct CpuContext:
-    ...
+from .graph_core import GraphCore, CallIdx, ValIdx
+from .storage import Storable
+from caspar.sysconfig import SymConfigDefault, FuncCollectionDefault, SymConfig
+from compile.reflection import get_type_name
+from memory import UnsafePointer
+from utils.static_tuple import StaticTuple
 
 
 struct KernelData[config: SymConfig]:
     var graph: Graph[config]
-    # var order: List[List[CallIdx]]
-    # var regmap: Dict[ValIdx, RegIdx]
+    var order: List[CallIdx]
+    var stack_size: Int
 
-    fn __init__[*Ts: Storable](out self, *outputs: *Ts):
-        self.graph = Graph[config]()
-        var valmap = Dict[ValIdx, ValIdx]()
+    fn __init__(out self, owned graph: Graph[config]):
+        self.graph = graph^
+        self.order = [CallIdx(i) for i in range(len(self.graph._core.calls))]
+        self.stack_size = len(self.graph._core.vals)
 
-        # @parameter
-        # for i in range(len(VariadicList(Ts))):
-        # print("heyyo")
+
+fn kernel[desc_fn: fn () -> KernelData[SymConfigDefault]]():
+    alias desc = desc_fn()
+    var stack = StaticTuple[Float32, desc.stack_size]()
+
+    var x = InlineArray[Float32, 4](fill=1)
+    var y = InlineArray[Float32, 4](fill=2)
+    var z = InlineArray[Float32, 4](fill=-1)
+    var args = Args(
+        x.unsafe_ptr(),
+        y.unsafe_ptr(),
+        z.unsafe_ptr(),
+    )
+    var context = CpuContext[12](args)
+
+    @parameter
+    for i in range(len(desc.order)):
+        alias call = desc.graph._core[desc.order[i]]
+        alias funcvar = call.func
+        alias FT = desc.config.funcs.Ts[funcvar.type_idx()]
+        alias func = funcvar.unsafe_get[FT]()
+        alias data = func.data()
+        FT.evaluate[args = call.args, outs = call.outs, data=data](context)
+
+        @parameter
+        for i in range(context.stack_size):
+            print(context.stack[i], end=", ")
+        print()
+    for i in range(4):
+        print(z[i], end=", ")
+        print()
+
+
+trait Context:
+    @always_inline
+    fn arg[name: StaticString](self) -> UnsafePointer[Float32]:
+        ...
+
+    @always_inline
+    fn get[idx: ValIdx](self) -> Float32:
+        ...
+
+    @always_inline
+    fn set[idx: ValIdx](mut self, val: Float32):
+        ...
+
+
+@register_passable("trivial")
+struct CpuContext[stack_size: Int](Context):
+    var args: Args
+    var stack: StaticTuple[Float32, stack_size]
+
+    fn __init__(out self, owned args: Args):
+        self.args = args
+        self.stack = StaticTuple[Float32, stack_size]()
+
+    @always_inline
+    fn arg[name: StaticString](self) -> UnsafePointer[Float32]:
+        return self.args.arg[name]()
+
+    @always_inline
+    fn get[idx: ValIdx](self) -> Float32:
+        return self.stack[idx]
+
+    @always_inline
+    fn set[idx: ValIdx](mut self, val: Float32):
+        self.stack.__setitem__[idx.value](val)
+
+
+@value
+@register_passable("trivial")
+struct Args:
+    var x: UnsafePointer[Float32]
+    var y: UnsafePointer[Float32]
+    var z: UnsafePointer[Float32]
+
+    @always_inline
+    fn arg[name: StaticString](self) -> UnsafePointer[Float32]:
+        @parameter
+        if name == "x":
+            return self.x
+        elif name == "y":
+            return self.y
+        elif name == "z":
+            return self.z
+        return UnsafePointer[Float32]()
 
 
 # @register_passable

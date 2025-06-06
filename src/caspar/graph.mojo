@@ -17,7 +17,7 @@ struct LockToken:
         pass
 
 
-struct Graph[config: SymConfig]:
+struct Graph[config: SymConfig](Movable):
     """Exposed interface for the graph."""
 
     alias LockToken = Int

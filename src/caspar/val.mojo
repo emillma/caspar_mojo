@@ -8,7 +8,7 @@ from sys.intrinsics import _type_is_eq
 
 @value
 @register_passable
-struct Call[config: SymConfig, origin: ImmutableOrigin](KeyElement):
+struct Call[config: SymConfig, origin: ImmutableOrigin](KeyElement, Writable):
     var graph: Pointer[Graph[config], origin]
     var idx: CallIdx
 

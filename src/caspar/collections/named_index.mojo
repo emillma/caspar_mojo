@@ -11,6 +11,7 @@ struct NamedIndex[T: StringLiteral](
     Indexer,
     # Comparable,
     KeyElement,
+    Writable,
 ):
     var value: Int
 
@@ -46,6 +47,9 @@ struct NamedIndex[T: StringLiteral](
 
     fn __add__(self, other: Self) -> Self:
         return Self(value=self.value + other.value)
+
+    fn write_to[W: Writer](self, mut writer: W):
+        writer.write(T, ": ", self.value)
 
 
 alias IndexT = Movable & Copyable & KeyElement & Indexer
@@ -128,7 +132,11 @@ struct IndexList[ElemT: IndexT, stack_size: Int = 4](
         )
         self.stack_ptr().bitcast[UnsafePointer[ElemT]]().init_pointee_move(ptr)
 
-    fn __getitem__[T: Indexer](ref self, idx: T) -> ref [self] ElemT:
+    fn __getitem__[T: Indexer](mut self, idx: T) -> ref [self] ElemT:
+        debug_assert(Int(idx) < Int(self.count), "Index out of bounds for IndexList")
+        return self.ptr().offset(idx)[]
+
+    fn __getitem__[T: Indexer](self, idx: T) -> ElemT:
         debug_assert(Int(idx) < Int(self.count), "Index out of bounds for IndexList")
         return self.ptr().offset(idx)[]
 
@@ -188,7 +196,7 @@ struct _IndexListIter[ElemT: IndexT, stack_size: Int, origin: Origin](
         self.index = 0
         self.src = Pointer(to=list)
 
-    fn __next__(mut self) -> ref [origin] ElemT:
+    fn __next__(mut self) -> ElemT:
         var idx = self.index
         self.index += 1
         return self.src[][idx]

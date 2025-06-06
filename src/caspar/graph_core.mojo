@@ -15,7 +15,7 @@ from collections import BitSet
 from caspar.utils import hash
 from caspar.collections import CallSet
 from caspar.collections.callset import SearchResult
-from .utils import multihash
+from .utils import multihash, hashupdate
 
 alias BytePtr = UnsafePointer[Byte]
 
@@ -70,10 +70,10 @@ struct CallMem[config: SymConfig](Movable, ExplicitlyCopyable, Hashable):
     fn __init__[FT: Callable](out self, owned func: FT, owned args: IndexList[ValIdx]):
         constrained[config.funcs.supports[FT](), "Type not supported"]()
         debug_assert(len(args) == FT.info.n_args or FT.info.n_args == -1)
-        self.args = args^
         self.func = func^
+        self.args = args^
+        self.hash = 0
         self.outs = IndexList[ValIdx](capacity=FT.info.n_outs)
-        self.hash = multihash(self.func, self.args)
         self.flags = CallFlags()
 
     fn copy(self, out ret: Self):
@@ -127,6 +127,10 @@ struct GraphCore[config: SymConfig](Movable):
         if not idx.found:
             for i in range(FT.info.n_outs):
                 call.outs.append(self.valmem_add(ret, i))
+
+            call.hash = hash(call.func)
+            for arg in call.args:
+                hashupdate(call.hash, self[arg])
             self.calls.insert(call^, idx)
 
     @staticmethod

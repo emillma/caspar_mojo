@@ -3,7 +3,7 @@ from caspar.graph import Graph
 from caspar.graph_core import GraphCore
 from caspar.val import Val, Call, CasparElement
 from caspar.funcs import AnyFunc
-from caspar.context import KernelData
+from caspar.context import KernelData, kernel
 from pathlib import Path
 from gpu import thread_idx, block_idx, global_idx, warp, barrier
 
@@ -25,23 +25,19 @@ from utils import Variant
 from caspar.calliter import CallChildIter
 
 
-fn foo():
+fn foo() -> KernelData[SymConfigDefault]:
     var a = funcs.ReadValue[1]("hello", 0)
     var b = funcs.ReadValue[1]("hello", 0)
-    print(hash(a) == hash(b))
     var graph = Graph[SymConfigDefault]()
     var x = Vector[4, reader = Unique["x"]](graph)
-    var y = Vector[4, reader = Unique["x"]](graph)
-    var z = Vector[4, writer = Unique["z"]](x + y)
-    for child in CallChildIter(z[1].call()):
-        print(child)
-    # print(z[2].call())
-    var kernel = KernelData[SymConfigDefault](z)
+    var y = Vector[4, reader = Unique["y"]](graph)
+    Vector[4, writer = Unique["z"]](x + y).write()
+    return KernelData[SymConfigDefault](graph^)
+    # return kernel^
 
 
 fn main() raises:
-    foo()
-    alias ftype = Variant[funcs.Add, funcs.Symbol]
+    kernel[foo]()
     # print(a.take[funcs.StoreFloat]().value)
     # print(sizeof[StaticString]())
     # var x = Vector[4, read=Unique]("x", graph)
