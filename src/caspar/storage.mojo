@@ -22,7 +22,8 @@ fn slice_size(size: Int, indices: Tuple[Int, Int, Int], out ret: Int):
 
 struct SliceInfo[target_size: Int, slice: Slice]:
     alias indices = slice.indices(target_size)
-    alias size = slice_size(target_size, Self.indices)
+    alias size: Int = slice_size(target_size, Self.indices)
+    alias range = range(Self.indices[0], Self.indices[1], Self.indices[2])
 
 
 struct SymbolStorage[size: Int, config: SymConfig, origin: ImmutableOrigin](
@@ -97,36 +98,26 @@ struct Vector[
     fn __init__(out self: Self, graph: Pointer[Graph[config], origin]):
         self.data = SymbolStorage[size, config, origin](graph)
 
-    # fn __getitem__(self, idx: Int) -> Val[config, origin]:
-    #     return self.data[idx]
+    fn __getitem__(self, idx: Int) -> Val[config, origin]:
+        return self.data[idx]
 
-    # fn __setitem__(mut self, idx: Int, owned value: Val[config, origin]):
-    #     print("setting")
-
-    # fn __getitem__[
-    #     sl: Int
-    # ](self) -> Vector[
-    #     size=2,
-    #     # size = (sl.end.or_else(size) - sl.start.or_else(0)) // sl.step.or_else(1),
-    #     config=config,
-    #     origin=origin,
-    # ]:
-    #     return Vector[
-    #         size=2,
-    #         # size = (sl.end.or_else(size) - sl.start.or_else(0)) // sl.step.or_else(1),
-    #         config=config,
-    #         origin=origin,
-    #     ](self.data.graph)
+    fn __setitem__(mut self, idx: Int, owned value: Val[config, origin]):
+        self.data[idx] = value
 
     fn __getitem__[
         sl: Slice,
-    ](
-        self,
-        out ret: Vector[size = SliceInfo[size, sl].size, config=config, origin=origin],
-    ):
-        ret = Vector[size = SliceInfo[size, sl].size, config=config, origin=origin](
-            self.data.graph
-        )
+    ](self, out ret: Vector[SliceInfo[size, sl].size, config, origin],):
+        constrained[False, "Not implemented yet"]()
+        ret = Vector[SliceInfo[size, sl].size, config, origin](self.data.graph)
+
+    fn __setitem__[
+        sl: Slice,
+    ](mut self, owned val: Vector[_, config, origin]):
+        constrained[SliceInfo[size, sl].size == val.size, "Slice size mismatch"]()
+
+        @parameter
+        for i in SliceInfo[size, sl].range:
+            self[i] = val[i]
 
     # fn __setitem__(mut self, slice: Slice, owned value: Vector[_, config, origin]):
     #     print("setting")
@@ -149,8 +140,15 @@ struct Vector[
     fn copy_to(self, other_graph: Graph):
         ...
 
-    # fn __del__(owned self):
-    #     debug_assert(len(self.data.assigned) == self.size, "Not all indices assigned")
+    fn __del__(owned self):
+        @parameter
+        if not _type_is_eq[Self.writer, UnDefined]():
+            debug_assert(
+                len(self.data.assigned) == self.size,
+                "Not all indices assigned",
+            )
+            return self.writer.write(self.data)
+        # debug_assert(len(self.data.assigned) == self.size, "Not all indices assigned")
 
     # fn discard(owned self):
     #     __disable_del self
