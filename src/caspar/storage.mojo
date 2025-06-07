@@ -11,6 +11,7 @@ from collections import BitSet, Set
 from memory import UnsafePointer
 from sys import sizeof, alignof
 from sys.intrinsics import _type_is_eq
+from caspar.accessor import Accessor
 
 
 fn slice_size(size: Int, indices: Tuple[Int, Int, Int], out ret: Int):
@@ -76,17 +77,21 @@ struct Vector[
     alias origin_ = origin
     var data: SymbolStorage[size, config, origin]
 
-    fn __init__(out self, *, ref [origin]bind_to: Graph[config]):
-        self.data = SymbolStorage[size](bind_to)
+    fn __init__(out self, ref [origin]graph: Graph[config]):
+        self.data = SymbolStorage[size](graph)
 
     fn __getitem__(self, idx: Int) -> Val[config, origin]:
         return self.data[idx]
+
+    fn read[acc: Accessor](owned self) -> Self:
+        acc.read_into(self.data)
+        return self
 
     fn __setitem__(mut self, idx: Int, owned value: Val[config, origin]):
         self.data[idx] = value
 
     fn __add__(self, other: Self, out ret: Self):
-        ret = Self(bind_to=self.data.graph[])
+        ret = Self(graph=self.data.graph[])
         for i in range(size):
             ret[i] = self.data.graph[].add_call(funcs.Add(), self[i], other[i])[0]
 
@@ -99,7 +104,7 @@ struct Vector[
         Self.size_, graph.config, new_origin
     ]:
         if self.data.graph[] is not graph:
-            debug_assert(False, "Cannot rebind to a different graph")
+            debug_assert(False, "Cannot rebind to a different graph yet")
 
         return rebind[SymbolStorage[Self.size_, graph.config, new_origin]](self.data)
 

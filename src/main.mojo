@@ -20,7 +20,7 @@ from caspar.collections import CallSet
 from sys.intrinsics import _type_is_eq
 from compile.reflection import get_type_name
 from caspar.storage import Storable, Vector
-from caspar.accessor import Accessor, Unique
+from caspar.accessor import Accessor, Unique, Arg
 from utils import Variant
 from caspar.calliter import CallChildIter
 import math
@@ -29,7 +29,9 @@ from caspar.utils import same_origin
 
 fn foo() -> KernelData[SymConfigDefault]:
     var graph = Graph[SymConfigDefault]()
-    var x = Vector[4](bind_to=graph)
+    var x = Vector[4](graph).read[Unique["x"]]()
+    var y = Vector[4](graph).read[Unique["y"]]()
+    # var y: Arg[Unique["y"]] =
     # var x = Arg[Vector[4], Unique['x']].read(graph)
     # var x = Vector[4, reader = Unique["x"]](graph)
     # var y = Vector[4, reader = Unique["y"]](graph)
