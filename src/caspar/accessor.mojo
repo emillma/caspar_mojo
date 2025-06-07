@@ -3,7 +3,7 @@ from caspar.collections import CallSet
 from caspar.funcs import AnyFunc
 from caspar.graph import Graph
 from caspar.graph_core import GraphCore
-from caspar.storage import SymbolStorage
+from caspar.storage import SymbolStorage, Storable
 from caspar.sysconfig import SymConfigDefault, SymConfig
 from caspar.val import Val, Call, CasparElement
 from collections import BitSet
@@ -43,16 +43,15 @@ struct Unique[name: StaticString](Accessor):
             _ = storage.graph[].add_call(funcs.WriteValue[1](name, i), storage[i])
 
 
-struct UnDefined(Accessor):
+struct Arg[type:Storable, accessor: Accessor]:
     @staticmethod
     fn read[
         size: Int, config: SymConfig, origin: ImmutableOrigin
     ](ref [origin]graph: Graph[config], out ret: SymbolStorage[size, config, origin]):
-        constrained[False, "Undefined accessor cannot write symbols"]()
-        ret = SymbolStorage[size, config, origin](graph)
+        return accessor.read[size, config, origin](graph, out ret)
 
     @staticmethod
     fn write[
         size: Int, config: SymConfig, origin: ImmutableOrigin
     ](storage: SymbolStorage[size, config, origin]):
-        constrained[False, "Undefined accessor cannot write symbols"]()
+        return accessor.write[size, config, origin](storage)

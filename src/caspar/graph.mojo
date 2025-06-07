@@ -3,7 +3,7 @@ from memory import UnsafePointer
 from . import funcs
 from .funcs import Callable, AnyFunc, StoreOne, StoreZero, StoreFloat
 from .val import Call, Val, CasparElement
-from .collections import CallIdx, ValIdx, OutIdx, IndexList, CallInstanceIdx
+from .collections import CallIdx, ValIdx, OutIdx, IndexList
 from .graph_core import GraphCore, CallMem, ValMem
 from sys.intrinsics import _type_is_eq
 from sys import sizeof, alignof
@@ -97,3 +97,15 @@ struct Graph[config: SymConfig](Movable):
         core = self._core^
         __disable_del token
         __disable_del self
+
+    fn __is__(self, other: Graph) -> Bool:
+        """Check if two graphs are the same."""
+
+        @parameter
+        if _type_is_eq[Self, __type_of(other)]():
+            return UnsafePointer(to=self) == UnsafePointer(to=rebind[Self](other))
+        return False
+
+    fn __isnot__(self, other: Graph) -> Bool:
+        """Check if two graphs are not the same."""
+        return not self is other

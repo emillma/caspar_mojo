@@ -1,12 +1,11 @@
 from caspar import funcs
-from caspar.accessor import Accessor, UnDefined
 from caspar.calliter import CallChildIter
 from caspar.collections import CallSet, CallIdx
 from caspar.collections import ValIdx, IndexList
 from caspar.funcs import AnyFunc
 from caspar.graph import Graph
 from caspar.graph_core import GraphCore
-from caspar.sysconfig import SymConfigDefault, SymConfig
+from caspar.sysconfig import SymConfigDefault, SymConfig, FuncCollection
 from caspar.val import Val, Call, CasparElement
 from collections import BitSet, Set
 from memory import UnsafePointer
@@ -56,12 +55,14 @@ struct SymbolStorage[size: Int, config: SymConfig, origin: ImmutableOrigin](
         return len(self.indices)
 
 
-trait Storable(Movable, Copyable):
+trait Storable(Movable, Copyable, Sized):
     alias size_: Int
-    alias reader_: Accessor
-    alias writer_: Accessor
 
-    fn copy_to(self, graph: Graph):
+    fn to_storage[
+        new_origin: ImmutableOrigin
+    ](self, ref [new_origin]graph: Graph) -> SymbolStorage[
+        Self.size_, graph.config, new_origin
+    ]:
         ...
 
 
@@ -69,34 +70,14 @@ struct Vector[
     size: Int,
     config: SymConfig,
     origin: ImmutableOrigin,
-    *,
-    reader: Accessor = UnDefined,
-    writer: Accessor = UnDefined,
-](Storable, Sized):
+](Storable):
     alias size_ = size
-    alias reader_ = reader
-    alias writer_ = writer
-    alias Undef = Vector[size, config, origin, reader=UnDefined, writer=UnDefined]
-    alias Like = Vector[size, config, origin, reader=_, writer=_]
+    alias config_ = config
+    alias origin_ = origin
     var data: SymbolStorage[size, config, origin]
 
-    @implicit
-    fn __init__(
-        out self: Self,
-        owned other: Self.Like,
-    ):
-        self.data = other.data^
-        __disable_del other
-
-    fn __init__(out self: Self, ref [origin]graph: Graph[config]):
-        @parameter
-        if _type_is_eq[Self.reader, UnDefined]():
-            self.data = SymbolStorage[size](graph)
-        else:
-            self.data = Self.reader.read[size=size](graph)
-
-    fn __init__(out self: Self, graph: Pointer[Graph[config], origin]):
-        self.data = SymbolStorage[size, config, origin](graph)
+    fn __init__(out self, *, ref [origin]bind_to: Graph[config]):
+        self.data = SymbolStorage[size](bind_to)
 
     fn __getitem__(self, idx: Int) -> Val[config, origin]:
         return self.data[idx]
@@ -104,51 +85,27 @@ struct Vector[
     fn __setitem__(mut self, idx: Int, owned value: Val[config, origin]):
         self.data[idx] = value
 
-    fn __getitem__[
-        sl: Slice,
-    ](self, out ret: Vector[SliceInfo[size, sl].size, config, origin],):
-        constrained[False, "Not implemented yet"]()
-        ret = Vector[SliceInfo[size, sl].size, config, origin](self.data.graph)
-
-    fn __setitem__[
-        sl: Slice,
-    ](mut self, owned val: Vector[_, config, origin]):
-        constrained[SliceInfo[size, sl].size == val.size, "Slice size mismatch"]()
-
-        @parameter
-        for i in SliceInfo[size, sl].range:
-            self[i] = val[i]
-
-    # fn __setitem__(mut self, slice: Slice, owned value: Vector[_, config, origin]):
-    #     print("setting")
-
-    # return self.data[idx]
-
-    fn __add__(self, other: Self.Like, out ret: Self.Undef):
-        ret = Self.Undef(self.data.graph)
+    fn __add__(self, other: Self, out ret: Self):
+        ret = Self(bind_to=self.data.graph[])
         for i in range(size):
-            ret.data[i] = self.data.graph[].add_call(
-                funcs.Add(), self.data[i], other.data[i]
-            )[0]
-
-    fn write(self):
-        self.writer.write(self.data)
+            ret[i] = self.data.graph[].add_call(funcs.Add(), self[i], other[i])[0]
 
     fn __len__(self) -> Int:
         return len(self.data)
 
-    fn copy_to(self, other_graph: Graph):
-        ...
+    fn to_storage[
+        new_origin: ImmutableOrigin
+    ](self, ref [new_origin]graph: Graph) -> SymbolStorage[
+        Self.size_, graph.config, new_origin
+    ]:
+        if self.data.graph[] is not graph:
+            debug_assert(False, "Cannot rebind to a different graph")
 
-    fn __del__(owned self):
-        @parameter
-        if not _type_is_eq[Self.writer, UnDefined]():
-            debug_assert(
-                len(self.data.assigned) == self.size,
-                "Not all indices assigned",
-            )
-            return self.writer.write(self.data)
-        # debug_assert(len(self.data.assigned) == self.size, "Not all indices assigned")
+        return rebind[SymbolStorage[Self.size_, graph.config, new_origin]](self.data)
+
+    # fn to_storage(self) -> SymbolStorage[size, config, origin]:
+    #     return self.data
+    # debug_assert(len(self.data.assigned) == self.size, "Not all indices assigned")
 
     # fn discard(owned self):
     #     __disable_del self
