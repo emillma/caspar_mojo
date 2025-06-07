@@ -1,6 +1,6 @@
 # from .callable import Callable, CallableVariant
 from .val import Call
-from .sysconfig import SymConfig
+from .sysconfig import RunConfig
 from os import abort
 from utils.static_tuple import StaticTuple
 from .context import Context
@@ -50,7 +50,7 @@ trait Callable(Copyable, Movable, KeyElement):
     alias DataT: AnyType
 
     fn write_call[
-        config: SymConfig, W: Writer
+        config: RunConfig, W: Writer
     ](self, call: Call[config], mut writer: W):
         ...
 
@@ -75,7 +75,7 @@ struct Symbol(Callable):
     alias DataT = NoneType
     var name: StaticString
 
-    fn write_call[conf: SymConfig, W: Writer](self, call: Call[conf], mut writer: W):
+    fn write_call[conf: RunConfig, W: Writer](self, call: Call[conf], mut writer: W):
         writer.write(self.name)
 
     fn __hash__(self) -> UInt:
@@ -110,7 +110,7 @@ struct ReadValue[size: Int = 1](Callable):
     var argname: StaticString
     var offset: Int
 
-    fn write_call[conf: SymConfig, W: Writer](self, call: Call[conf], mut writer: W):
+    fn write_call[conf: RunConfig, W: Writer](self, call: Call[conf], mut writer: W):
         writer.write(self.argname, self.offset)
 
     fn __hash__(self) -> UInt:
@@ -147,7 +147,7 @@ struct WriteValue[size: Int = 1](Callable):
     var argname: StaticString
     var offset: Int
 
-    fn write_call[conf: SymConfig, W: Writer](self, call: Call[conf], mut writer: W):
+    fn write_call[conf: RunConfig, W: Writer](self, call: Call[conf], mut writer: W):
         writer.write("Write(", self.argname, self.offset, ", ")
         for i in range(size):
             writer.write(call.arg(i))
@@ -186,7 +186,7 @@ struct Add(Callable):
     alias info = FuncInfo("Add", 2, 1)
     alias DataT = NoneType
 
-    fn write_call[conf: SymConfig, W: Writer](self, call: Call[conf], mut writer: W):
+    fn write_call[conf: RunConfig, W: Writer](self, call: Call[conf], mut writer: W):
         writer.write(call.arg(0), " + ", call.arg(1))
 
     fn __hash__(self) -> UInt:
@@ -218,7 +218,7 @@ struct Mul(Callable):
     alias info = FuncInfo("Mul", -1, 1)
     alias DataT = NoneType
 
-    fn write_call[conf: SymConfig, W: Writer](self, call: Call[conf], mut writer: W):
+    fn write_call[conf: RunConfig, W: Writer](self, call: Call[conf], mut writer: W):
         writer.write(call.arg(0), " * ", call.arg(1))
 
     fn __hash__(self) -> UInt:
@@ -251,7 +251,7 @@ struct StoreFloat(Callable):
     alias DataT = Float64
     var value: Self.DataT
 
-    fn write_call[conf: SymConfig, W: Writer](self, call: Call[conf], mut writer: W):
+    fn write_call[conf: RunConfig, W: Writer](self, call: Call[conf], mut writer: W):
         writer.write(self.value)
 
     fn __hash__(self) -> UInt:
@@ -283,7 +283,7 @@ struct StoreOne(Callable):
     alias info = FuncInfo("StoreOne", 0, 1)
     alias DataT = NoneType
 
-    fn write_call[conf: SymConfig, W: Writer](self, call: Call[conf], mut writer: W):
+    fn write_call[conf: RunConfig, W: Writer](self, call: Call[conf], mut writer: W):
         writer.write("1")
 
     fn __hash__(self) -> UInt:
@@ -315,7 +315,7 @@ struct StoreZero(Callable):
     alias info = FuncInfo("StoreZero", 0, 1)
     alias DataT = NoneType
 
-    fn write_call[conf: SymConfig, W: Writer](self, call: Call[conf], mut writer: W):
+    fn write_call[conf: RunConfig, W: Writer](self, call: Call[conf], mut writer: W):
         writer.write("0")
 
     fn __hash__(self) -> UInt:
@@ -347,7 +347,7 @@ struct AnyFunc(Callable):
     alias info = FuncInfo("AnyFunc", -1, -1)
     alias DataT = NoneType
 
-    fn write_call[conf: SymConfig, W: Writer](self, call: Call[conf], mut writer: W):
+    fn write_call[conf: RunConfig, W: Writer](self, call: Call[conf], mut writer: W):
         constrained[False, "AnyFunc should not be used as a function type"]()
 
     fn __hash__(self) -> UInt:

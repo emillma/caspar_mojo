@@ -13,7 +13,7 @@ from .collections import (
 )
 from collections import BitSet
 from caspar.utils import hash
-from caspar.collections import CallSet
+from caspar.collections import CallSet, FuncVariant
 from caspar.collections.callset import SearchResult
 from .utils import multihash, hashupdate
 
@@ -60,15 +60,15 @@ struct CallFlags:
         return self.data == other.data
 
 
-struct CallMem[config: SymConfig](Movable, ExplicitlyCopyable, Hashable):
+struct CallMem[sym: SymConfig](Movable, ExplicitlyCopyable, Hashable):
     var args: IndexList[ValIdx]
     var outs: IndexList[ValIdx]
     var hash: UInt
     var flags: CallFlags
-    var func: config.FuncVariant
+    var func: FuncVariant[*sym.func_types]
 
     fn __init__[FT: Callable](out self, owned func: FT, owned args: IndexList[ValIdx]):
-        constrained[config.funcs.supports[FT](), "Type not supported"]()
+        constrained[sym.supports[FT](), "Type not supported"]()
         debug_assert(len(args) == FT.info.n_args or FT.info.n_args == -1)
         self.func = func^
         self.args = args^

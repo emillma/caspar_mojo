@@ -5,7 +5,7 @@ from caspar.collections import ValIdx, IndexList
 from caspar.funcs import AnyFunc
 from caspar.graph import Graph
 from caspar.graph_core import GraphCore
-from caspar.sysconfig import SymConfigDefault, SymConfig, FuncCollection
+from caspar.sysconfig import SymConfigDefault, SymConfig, FuncCollection, Config
 from caspar.val import Val, Call, CasparElement
 from collections import BitSet, Set
 from memory import UnsafePointer
@@ -62,7 +62,7 @@ trait Storable(Movable, Copyable, Sized):
     fn to_storage[
         new_origin: ImmutableOrigin
     ](self, ref [new_origin]graph: Graph) -> SymbolStorage[
-        Self.size_, graph.config, new_origin
+        Self.size_, Config[graph.sym, new_origin]
     ]:
         ...
 
@@ -80,12 +80,22 @@ struct Vector[
     fn __init__(out self, ref [origin]graph: Graph[config]):
         self.data = SymbolStorage[size](graph)
 
+    fn __init__(out self: Vector[size, SymConfigDefault, ImmutableAnyOrigin]):
+        __mlir_op.`lit.ownership.mark_initialized`(__get_mvalue_as_litref(self.data))
+
+    @staticmethod
+    fn arg[accessor: Accessor]():
+        ...
+
     fn __getitem__(self, idx: Int) -> Val[config, origin]:
         return self.data[idx]
 
     fn read[acc: Accessor](owned self) -> Self:
         acc.read_into(self.data)
         return self
+
+    fn write[acc: Accessor](self):
+        acc.write(self.data)
 
     fn __setitem__(mut self, idx: Int, owned value: Val[config, origin]):
         self.data[idx] = value

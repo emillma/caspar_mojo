@@ -134,7 +134,7 @@ struct FuncVariant[*Ts: Callable](Copyable, Movable, ExplicitlyCopyable, KeyElem
         return Self._sentinel
 
     @staticmethod
-    fn is_type_supported[T: Callable]() -> Bool:
+    fn supports[T: Callable]() -> Bool:
         return Self.type_idx_of[T]() != Self._sentinel
 
     fn __eq__(self, other: Self) -> Bool:

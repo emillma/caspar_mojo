@@ -1,4 +1,5 @@
 import .funcs
+from caspar.funcs import Callable, Symbol, Add
 from .val import Val, Call
 from stdlib.builtin.range import _SequentialRange
 from sys.intrinsics import _type_is_eq
@@ -6,9 +7,11 @@ from os import abort
 from utils import Variant
 from sys.info import sizeof
 from caspar.collections import FuncVariant
+from caspar.graph import Graph
 
 
 struct FuncCollection[*Ts: funcs.Callable](Sized):
+    alias bar = __type_of(Ts)
     alias vlist = VariadicList(Ts)
     var size: Int
 
@@ -75,14 +78,14 @@ struct FuncCollection[*Ts: funcs.Callable](Sized):
         return self.size
 
 
-struct SymConfig[funcs: FuncCollection]:
-    alias FuncVariant = FuncVariant[*funcs.Ts]
+# struct SymConfig[funcs: FuncCollection]:
+#     alias func_types = funcs.Ts
 
-    fn __init__(out self):
-        ...
+#     fn __init__(out self):
+#         ...
 
-    fn __eq__(self, other: SymConfig[_]) -> Bool:
-        return self.funcs == other.funcs
+#     fn __eq__(self, other: SymConfig[_]) -> Bool:
+#         return self.funcs == other.funcs
 
 
 alias FuncCollectionDefault = FuncCollection[
@@ -100,4 +103,59 @@ alias FuncCollectionDefault = FuncCollection[
     funcs.StoreZero,
 ]()
 
-alias SymConfigDefault = SymConfig[FuncCollectionDefault]()
+
+trait SymConfig:
+    alias func_types: __mlir_type[`!kgen.variadic<`, Callable, `>`]
+
+    @staticmethod
+    fn supports[T: Callable]() -> Bool:
+        ...
+
+    # alias origin: ImmutableOrigin
+    # alias funcs: Variadic[Callable]
+
+
+struct DefaultGraphConfig(SymConfig):
+    alias func_types = FuncCollection[
+        funcs.Symbol,
+        funcs.ReadValue[1],
+        funcs.WriteValue[1],
+        funcs.ReadValue[2],
+        funcs.WriteValue[2],
+        # funcs.ReadValue[4],
+        # funcs.WriteValue[4],
+        funcs.Add,
+        funcs.Mul,
+        funcs.StoreFloat,
+        funcs.StoreOne,
+        funcs.StoreZero,
+    ].Ts
+
+    @staticmethod
+    fn supports[T: Callable]() -> Bool:
+        return FuncVariant[*Self.func_types].supports[T]()
+
+
+trait RunConfig:
+    alias sym: SymConfig
+    alias origin: ImmutableOrigin
+
+    @staticmethod
+    fn check(graph: Graph):
+        ...
+
+
+struct Config[sym_config: SymConfig, origin_: ImmutableOrigin](RunConfig):
+    alias sym = sym_config
+    alias origin = origin_
+
+    @staticmethod
+    fn check(graph: Graph):
+        constrained[
+            _type_is_eq[Self.sym, graph.sym](),
+            "Graph type mismatch",
+        ]()
+        # constrained[
+        #     __origin_of(graph) == Self.origin,
+        #     "Graph origin must match the config origin",
+        # ]()
