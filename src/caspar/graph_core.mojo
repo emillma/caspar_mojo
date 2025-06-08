@@ -65,10 +65,10 @@ struct CallMem[sym: SymConfig](Movable, ExplicitlyCopyable, Hashable):
     var outs: IndexList[ValIdx]
     var hash: UInt
     var flags: CallFlags
-    var func: FuncVariant[*sym.func_types]
+    var func: FuncVariant[sym]
 
     fn __init__[FT: Callable](out self, owned func: FT, owned args: IndexList[ValIdx]):
-        constrained[sym.supports[FT](), "Type not supported"]()
+        # constrained[sym.supports[FT](), "Type not supported"]()
         debug_assert(len(args) == FT.info.n_args or FT.info.n_args == -1)
         self.func = func^
         self.args = args^

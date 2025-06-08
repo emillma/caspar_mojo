@@ -90,3 +90,7 @@ struct Graph[sym: SymConfig](Movable):
         if _type_is_eq[Self, __type_of(other)]():
             return UnsafePointer(to=self) == UnsafePointer(to=rebind[Self](other))
         return False
+
+    fn make_kernel[*As: accessors.Accessor](self, owned *args: *As):
+        """Create a kernel call with the given arguments."""
+        ...

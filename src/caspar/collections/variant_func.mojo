@@ -4,13 +4,16 @@ from sys import alignof, sizeof
 from sys.intrinsics import _type_is_eq
 
 from memory import UnsafePointer
+from caspar.sysconfig import SymConfig
 
 
-struct FuncVariant[*Ts: Callable](Copyable, Movable, ExplicitlyCopyable, KeyElement):
+struct FuncVariant[sym: SymConfig](Copyable, Movable, ExplicitlyCopyable, KeyElement):
     alias Trait = Callable
     alias _sentinel: Int = -1
     var hash: UInt
-    var _impl: __mlir_type[`!kgen.variant<[rebind(:`, __type_of(Ts), ` `, Ts, `)]>`]
+    var _impl: __mlir_type[
+        `!kgen.variant<[rebind(:`, __type_of(sym.func_types), ` `, sym.func_types, `)]>`
+    ]
 
     fn __init__(out self, hashval: UInt, *, unsafe_uninitialized: Bool):
         self.hash = hashval
@@ -28,8 +31,8 @@ struct FuncVariant[*Ts: Callable](Copyable, Movable, ExplicitlyCopyable, KeyElem
         copy.type_idx() = self.type_idx()
 
         @parameter
-        for i in range(len(VariadicList(Ts))):
-            alias T = Ts[i]
+        for i in range(len(VariadicList(sym.func_types))):
+            alias T = sym.func_types[i]
             if copy.type_idx() == i:
                 copy._get_ptr[T]().init_pointee_move(self._get_ptr[T]()[])
                 return
@@ -43,8 +46,8 @@ struct FuncVariant[*Ts: Callable](Copyable, Movable, ExplicitlyCopyable, KeyElem
         self.type_idx() = other.type_idx()
 
         @parameter
-        for i in range(len(VariadicList(Ts))):
-            alias T = Ts[i]
+        for i in range(len(VariadicList(sym.func_types))):
+            alias T = sym.func_types[i]
             if self.type_idx() == i:
                 # Calls the correct __moveinit__
                 other._get_ptr[T]().move_pointee_into(self._get_ptr[T]())
@@ -54,9 +57,9 @@ struct FuncVariant[*Ts: Callable](Copyable, Movable, ExplicitlyCopyable, KeyElem
         """Destroy the variant."""
 
         @parameter
-        for i in range(len(VariadicList(Ts))):
+        for i in range(len(VariadicList(sym.func_types))):
             if self.type_idx() == i:
-                self._get_ptr[Ts[i]]().destroy_pointee()
+                self._get_ptr[sym.func_types[i]]().destroy_pointee()
                 return
 
     fn __getitem__[T: Self.Trait](ref self) -> ref [self] T:
@@ -93,24 +96,16 @@ struct FuncVariant[*Ts: Callable](Copyable, Movable, ExplicitlyCopyable, KeyElem
 
     @staticmethod
     fn type_idx_of[T: Self.Trait]() -> Int:
-        @parameter
-        for i in range(len(VariadicList(Ts))):
-            if _type_is_eq[Ts[i], T]():
-                return i
-        return Self._sentinel
-
-    @staticmethod
-    fn supports[T: Self.Trait]() -> Bool:
-        return Self.type_idx_of[T]() != Self._sentinel
+        return sym.func_idx[T]()
 
     fn __eq__(self, other: Self) -> Bool:
         if self.hash != other.hash or self.type_idx() != other.type_idx():
             return False
 
         @parameter
-        for i in range(len(VariadicList(Ts))):
+        for i in range(len(VariadicList(sym.func_types))):
             if i == Int(self.type_idx()):
-                alias T = self.Ts[i]
+                alias T = self.sym.func_types[i]
                 return self.unsafe_get[T]() == other.unsafe_get[T]()
         return False
 

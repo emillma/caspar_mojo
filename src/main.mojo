@@ -1,39 +1,57 @@
-from caspar import funcs
-from caspar.compile import Kernel
-from caspar import accessors
-from caspar.funcs import AnyFunc
-from caspar.graph import Graph
-from caspar.graph_core import GraphCore
-
-from caspar.sysconfig import DefaultSymConfig, SymConfig
-from caspar.storage import Vector
-
-# from gpu import thread_idx, block_idx, global_idx, warp, barrier
-# from gpu.host import DeviceContext, Attribute
+# from caspar.compile import Kernel, Arg
+# from caspar import accessors
+# from caspar.graph import Graph
+# from caspar.sysconfig import DefaultSymConfig, SymConfig
+# from caspar.storage import Vector, Storable
+# from caspar import funcs
+from sys.intrinsics import _type_is_eq
 
 
-fn foo(out graph: Graph[DefaultSymConfig]):
-    graph = Graph[DefaultSymConfig]()
-    var x = Vector[4]("x", graph)
-    var foo = Kernel(graph)
+# fn foo():
+#     var graph = Graph[DefaultSymConfig]()
+#     var x = Vector[4]("x", graph)
+#     var y = Vector[4]("y", graph)
+#     var z = x + y
+#     var bar = graph.make_kernel(
+#         accessors.ReadUnique(x),
+#         accessors.ReadUnique(y),
+#         # accessors.WriteUnique(z),
+#     )
+
+
+# ret = Kernel((graph.mark[ReadUnique](x).mark[ReadUnique](y).mark[WriteUnique](z)))
+alias TraitType = AnyTrivialRegType
+
+
+#     alias count = len(VariadicList(Ts))
+
+
+#     @staticmethod
+#     fn index_of[T: traitT]() -> Int:
+#         @parameter
+#         for i in range(len(VariadicList(Ts))):
+#             if __mlir_attr[
+#                 `#kgen.param.expr<eq,`,
+#                 `#kgen.type<`,
+#                 +T,
+#                 `> : !kgen.type`,
+#                 `,`,
+#                 `#kgen.type<`,
+#                 +Ts[i],
+#                 `> : !kgen.type`,
+#                 `> : i1`,
+#             ]:
+#                 return i
+#         return -1
+struct Collection[Trait: TraitType, *Ts: Trait]:
+    alias count = len(VariadicList(Ts))
+
+
+alias foo: __mlir_type[`!kgen.variadic<`, Writable, `>`] = Collection[
+    Writable, Int, Float32, String
+].Ts
 
 
 fn main():
-    print("Start")
-    foo()
-    # print(c)
-    # print(String(_type_is_eq[Float32, Int]()))
-    # var graph = Graph[DefaultGraphConfig]()
-    # var x = graph.add_call(funcs.Symbol("a"))
-    # var x = Vector[4](graph).read[Unique["x"]]()
-    # var y = Vector[4](graph).read[Unique["y"]]()
-
-    # print(a.take[funcs.StoreFloat]().value)
-    # print(sizeof[StaticString]())
-    # var x = Vector[4, read=Unique]("x", graph)
-    # var y = Vector[4, read=Unique]("y", graph)
-    # var z: Vector[4, write=Unique] = x + y
-    # print(z[1])
-    # b = Vector[4, write=Unique]("x", graph)
-    # print(v[0])
-    # print(v[1])
+    # print(len(VariadicList(DefaultSymConfig.func_types)))
+    print(len(VariadicList[Writable](foo)))
