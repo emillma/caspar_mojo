@@ -90,32 +90,32 @@ struct CallMem[sym: SymConfig](Movable, ExplicitlyCopyable, Hashable):
         return self.func == other.func and self.args == other.args
 
 
-struct GraphCore[config: SymConfig](Movable):
+struct GraphCore[sym: SymConfig](Movable):
     """The symbolic graph core that holds the call sets and value memory."""
 
-    var calls: CallSet[config]
+    var calls: CallSet[sym]
 
-    var vals: List[ValMem[config]]
+    var vals: List[ValMem[sym]]
 
     fn __init__(out self):
-        self.vals = List[ValMem[config]]()
-        self.calls = CallSet[config]()
+        self.vals = List[ValMem[sym]]()
+        self.calls = CallSet[sym]()
 
     fn valmem_add(mut self, call: CallIdx, out_idx: OutIdx, out ret: ValIdx):
         ret = len(self.vals)
-        self.vals.append(ValMem[config](call=call, out_idx=out_idx))
+        self.vals.append(ValMem[sym](call=call, out_idx=out_idx))
 
-    fn __getitem__(ref self, idx: CallIdx) -> ref [self.calls[idx]] CallMem[config]:
+    fn __getitem__(ref self, idx: CallIdx) -> ref [self.calls[idx]] CallMem[sym]:
         return self.calls[idx]
 
-    fn __getitem__(ref self, idx: ValIdx) -> ref [self.vals[idx]] ValMem[config]:
+    fn __getitem__(ref self, idx: ValIdx) -> ref [self.vals[idx]] ValMem[sym]:
         return self.vals[idx]
 
     fn callmem_add[
         FT: Callable
     ](mut self, owned func: FT, owned args: IndexList[ValIdx], out ret: CallIdx):
         alias ftype_idx = Self.ftype_idx[FT]()
-        var call = CallMem[config](func, args^)
+        var call = CallMem[sym](func, args^)
         var idx = self.calls.search(call)
         ret = idx.index
 
@@ -135,5 +135,4 @@ struct GraphCore[config: SymConfig](Movable):
 
     @staticmethod
     fn ftype_idx[FT: Callable]() -> Int:
-        constrained[config.funcs.supports[FT](), "Type not supported"]()
-        return config.funcs.func_to_idx[FT]()
+        return sym.func_idx[FT]()

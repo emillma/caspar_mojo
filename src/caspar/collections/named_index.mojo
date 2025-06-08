@@ -98,7 +98,7 @@ struct IndexList[ElemT: IndexT, stack_size: Int = 4](
 
     fn copy(out self: Self, other: Self):
         self = Self(capacity=other.capacity)
-        for i in range(len(self)):
+        for i in range(len(other)):
             self.append(other[i])
 
     fn append(mut self, owned value: ElemT):

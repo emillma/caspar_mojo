@@ -7,7 +7,7 @@ from memory import UnsafePointer
 
 
 struct FuncVariant[*Ts: Callable](Copyable, Movable, ExplicitlyCopyable, KeyElement):
-    # Fields
+    alias Trait = Callable
     alias _sentinel: Int = -1
     var hash: UInt
     var _impl: __mlir_type[`!kgen.variant<[rebind(:`, __type_of(Ts), ` `, Ts, `)]>`]
@@ -17,7 +17,7 @@ struct FuncVariant[*Ts: Callable](Copyable, Movable, ExplicitlyCopyable, KeyElem
         __mlir_op.`lit.ownership.mark_initialized`(__get_mvalue_as_litref(self._impl))
 
     @implicit
-    fn __init__[T: Callable](out self, owned value: T):
+    fn __init__[T: Self.Trait](out self, owned value: T):
         alias idx = Self.type_idx_of[T]()
         self = Self(hash(value), unsafe_uninitialized=True)
         self.type_idx() = idx
@@ -59,14 +59,14 @@ struct FuncVariant[*Ts: Callable](Copyable, Movable, ExplicitlyCopyable, KeyElem
                 self._get_ptr[Ts[i]]().destroy_pointee()
                 return
 
-    fn __getitem__[T: Callable](ref self) -> ref [self] T:
+    fn __getitem__[T: Self.Trait](ref self) -> ref [self] T:
         if not self.isa[T]():
             abort("get: wrong variant type")
 
         return self.unsafe_get[T]()
 
     @always_inline("nodebug")
-    fn _get_ptr[T: Callable](self) -> UnsafePointer[T]:
+    fn _get_ptr[T: Self.Trait](self) -> UnsafePointer[T]:
         alias idx = Self.type_idx_of[T]()
         constrained[idx != Self._sentinel, "not a union element type"]()
         var ptr = UnsafePointer(to=self._impl).address
@@ -83,50 +83,16 @@ struct FuncVariant[*Ts: Callable](Copyable, Movable, ExplicitlyCopyable, KeyElem
         ](ptr)
         return UnsafePointer(discr_ptr).bitcast[UInt8]()[]
 
-    @always_inline
-    fn take[T: Callable](mut self) -> T:
-        if not self.isa[T]():
-            abort("taking the wrong type!")
-
-        return self.unsafe_take[T]()
-
-    @always_inline
-    fn unsafe_take[T: Callable](mut self) -> T:
-        debug_assert(self.isa[T](), "taking wrong type")
-        # don't call the variant's deleter later
-        self.type_idx() = Self._sentinel
-        return self._get_ptr[T]().take_pointee()
-
-    @always_inline
-    fn replace[Tin: Callable, Tout: Callable](mut self, owned value: Tin) -> Tout:
-        if not self.isa[Tout]():
-            abort("taking out the wrong type!")
-
-        return self.unsafe_replace[Tin, Tout](value^)
-
-    @always_inline
-    fn unsafe_replace[
-        Tin: Callable, Tout: Callable
-    ](mut self, owned value: Tin) -> Tout:
-        debug_assert(self.isa[Tout](), "taking out the wrong type!")
-
-        var x = self.unsafe_take[Tout]()
-        self.set[Tin](value^)
-        return x^
-
-    fn set[T: Callable](mut self, owned value: T):
-        self = Self(value^)
-
-    fn isa[T: Callable](self) -> Bool:
+    fn isa[T: Self.Trait](self) -> Bool:
         alias idx = Self.type_idx_of[T]()
         return self.type_idx() == idx
 
-    fn unsafe_get[T: Callable](ref self) -> ref [self] T:
+    fn unsafe_get[T: Self.Trait](ref self) -> ref [self] T:
         debug_assert(self.isa[T](), "get: wrong variant type")
         return self._get_ptr[T]()[]
 
     @staticmethod
-    fn type_idx_of[T: Callable]() -> Int:
+    fn type_idx_of[T: Self.Trait]() -> Int:
         @parameter
         for i in range(len(VariadicList(Ts))):
             if _type_is_eq[Ts[i], T]():
@@ -134,7 +100,7 @@ struct FuncVariant[*Ts: Callable](Copyable, Movable, ExplicitlyCopyable, KeyElem
         return Self._sentinel
 
     @staticmethod
-    fn supports[T: Callable]() -> Bool:
+    fn supports[T: Self.Trait]() -> Bool:
         return Self.type_idx_of[T]() != Self._sentinel
 
     fn __eq__(self, other: Self) -> Bool:

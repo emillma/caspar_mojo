@@ -5,49 +5,38 @@ from caspar.collections import ValIdx, IndexList
 from caspar.funcs import AnyFunc
 from caspar.graph import Graph
 from caspar.graph_core import GraphCore
-from caspar.sysconfig import SymConfigDefault, SymConfig, FuncCollection, Config
-from caspar.val import Val, Call, CasparElement
+from caspar.sysconfig import SymConfig
+from caspar.val import Val, Call
 from collections import BitSet, Set
 from memory import UnsafePointer
 from sys import sizeof, alignof
 from sys.intrinsics import _type_is_eq
-from caspar.accessor import Accessor
+from caspar.accessors import Accessor
+from compile.reflection import get_type_name
 
 
-fn slice_size(size: Int, indices: Tuple[Int, Int, Int], out ret: Int):
-    var start, end, step = indices
-    ret = (end - start + step - 1) // step
-    debug_assert(ret >= 0, "Slice size has to be non-negative")
-
-
-struct SliceInfo[target_size: Int, slice: Slice]:
-    alias indices = slice.indices(target_size)
-    alias size: Int = slice_size(target_size, Self.indices)
-    alias range = range(Self.indices[0], Self.indices[1], Self.indices[2])
-
-
-struct SymbolStorage[size: Int, config: SymConfig, origin: ImmutableOrigin](
+struct SymbolStorage[size: Int, sym: SymConfig, origin: ImmutableOrigin](
     Movable, Copyable, Sized
 ):
-    alias ElemT = Val[config, origin]
+    alias ElemT = Val[sym, origin]
 
     var indices: IndexList[ValIdx, Self.size]
     var assigned: BitSet[Self.size]
-    var graph: Pointer[Graph[config], origin]
+    var graph: Pointer[Graph[sym], origin]
 
-    fn __init__(out self: Self, ref [origin]graph: Graph[config]):
-        self = Self(Pointer(to=graph))
-
-    fn __init__(out self: Self, graph: Pointer[Graph[config], origin]):
-        self.graph = graph
+    fn __init__(out self: Self, ref [origin]graph: Graph[sym]):
+        self.graph = Pointer(to=graph)
         self.indices = IndexList[ValIdx, Self.size]()
         self.assigned = BitSet[Self.size]()
 
-    fn __getitem__(self, idx: Int) -> Val[config, origin]:
+    fn __getitem__(self, idx: Int) -> Val[sym, origin]:
         debug_assert(self.assigned.test(idx), "Index not valid")
         return Val(self.graph, self.indices[idx])
 
-    fn __setitem__(mut self, idx: Int, owned value: Val[config, origin]):
+    fn __setitem__(mut self, idx: Int, owned value: Val[sym, origin]):
+        constrained[_type_is_eq[sym, value.sym]()]()
+        if not value.graph[].same_as(self.graph[]):
+            debug_assert(False, "Cannot rebind to a different graph yet")
         debug_assert(not self.assigned.test(idx), "Index not valid")
         self.assigned.set(idx)
         self.indices[idx] = value.idx
@@ -58,65 +47,91 @@ struct SymbolStorage[size: Int, config: SymConfig, origin: ImmutableOrigin](
 
 trait Storable(Movable, Copyable, Sized):
     alias size_: Int
+    alias sym_: SymConfig
+    alias origin_: ImmutableOrigin
 
-    fn to_storage[
-        new_origin: ImmutableOrigin
-    ](self, ref [new_origin]graph: Graph) -> SymbolStorage[
-        Self.size_, Config[graph.sym, new_origin]
-    ]:
+    fn graph(self) -> ref [Self.origin_] Graph[Self.sym_]:
+        ...
+
+    fn __getitem__(self, idx: Int) -> Val[Self.sym_, Self.origin_]:
+        ...
+
+    fn __setitem__(mut self, idx: Int, owned value: Val[Self.sym_, Self.origin_]):
         ...
 
 
+@fieldwise_init
 struct Vector[
     size: Int,
-    config: SymConfig,
+    sym: SymConfig,
     origin: ImmutableOrigin,
-](Storable):
+](Storable, Writable):
     alias size_ = size
-    alias config_ = config
+    alias sym_ = sym
     alias origin_ = origin
-    var data: SymbolStorage[size, config, origin]
+    var data: SymbolStorage[size, sym, origin]
 
-    fn __init__(out self, ref [origin]graph: Graph[config]):
-        self.data = SymbolStorage[size](graph)
+    fn __init__[
+        sym: SymConfig, origin: ImmutableOrigin
+    ](
+        out self: Vector[size, sym, origin],
+        name: StaticString,
+        ref [origin]graph: Graph[sym],
+    ):
+        self.data = SymbolStorage[size, sym, origin](graph)
 
-    fn __init__(out self: Vector[size, SymConfigDefault, ImmutableAnyOrigin]):
-        __mlir_op.`lit.ownership.mark_initialized`(__get_mvalue_as_litref(self.data))
+        @parameter
+        for i in range(size):
+            self.data[i] = graph.add_call(funcs.Symbol(name, i))[0]
 
-    @staticmethod
-    fn arg[accessor: Accessor]():
-        ...
-
-    fn __getitem__(self, idx: Int) -> Val[config, origin]:
+    fn __getitem__(self, idx: Int) -> Val[sym, origin]:
         return self.data[idx]
 
-    fn read[acc: Accessor](owned self) -> Self:
-        acc.read_into(self.data)
-        return self
-
-    fn write[acc: Accessor](self):
-        acc.write(self.data)
-
-    fn __setitem__(mut self, idx: Int, owned value: Val[config, origin]):
+    fn __setitem__(mut self, idx: Int, owned value: Val[sym, origin]):
         self.data[idx] = value
 
     fn __add__(self, other: Self, out ret: Self):
-        ret = Self(graph=self.data.graph[])
+        data = SymbolStorage[size, sym, origin](graph=self.graph())
         for i in range(size):
-            ret[i] = self.data.graph[].add_call(funcs.Add(), self[i], other[i])[0]
+            data[i] = self.graph().add_call(funcs.Add(), self[i], other[i])[0]
+        ret = Self(data)
 
     fn __len__(self) -> Int:
         return len(self.data)
 
-    fn to_storage[
-        new_origin: ImmutableOrigin
-    ](self, ref [new_origin]graph: Graph) -> SymbolStorage[
-        Self.size_, graph.config, new_origin
-    ]:
-        if self.data.graph[] is not graph:
-            debug_assert(False, "Cannot rebind to a different graph yet")
+    fn graph(self) -> ref [origin] Graph[sym]:
+        return self.data.graph[]
 
-        return rebind[SymbolStorage[Self.size_, graph.config, new_origin]](self.data)
+    fn to_storage(self) -> SymbolStorage[size, sym, origin]:
+        return self.data
+
+    fn write_to[W: Writer](self, mut writer: W):
+        writer.write("[")
+
+        @parameter
+        for i in range(size):
+            writer.write(self[i], ", " if i < size - 1 else "")
+        writer.write("]")
+
+    # alias Generics: Storable
+    # alias T: Storable
+    # fn to_storage[
+    #     new_origin: ImmutableOrigin
+    # ](self, ref [new_origin]graph: Graph) -> SymbolStorage[
+    #     Self.size_, Config[graph.sym, new_origin]
+    # ]:
+
+    #     ...
+
+    # fn to_storage[
+    #     new_origin: ImmutableOrigin
+    # ](self, ref [new_origin]graph: Graph) -> SymbolStorage[
+    #     Self.size_, graph.config, new_origin
+    # ]:
+    #     if self.data.graph[] is not graph:
+    #         debug_assert(False, "Cannot rebind to a different graph yet")
+
+    #     return rebind[SymbolStorage[Self.size_, graph.config, new_origin]](self.data)
 
     # fn to_storage(self) -> SymbolStorage[size, config, origin]:
     #     return self.data
