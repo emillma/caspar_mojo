@@ -1,14 +1,47 @@
 from .collections import RegIdx
 from .graph import Graph
-from .graph_core import GraphCore, CallIdx, ValIdx
+from .graph_core import GraphCore, CallIdx, ValIdx, IndexList
 
 # from .storage import Storable
 from caspar.sysconfig import DefaultSymConfig, SymConfig
-from compile.reflection import get_type_name
 from memory import UnsafePointer
 from utils.static_tuple import StaticTuple
+from caspar.accessors import Accessor
+from caspar.storage import Storable
+from caspar.val import Val, Call
+
 
 # from caspar.collections import AccessorVariant
+# trait ArgDesc(Movable):
+#     alias name_: StaticString
+#     alias size_: Int
+#     alias AccessT_: Accessor
+#     alias StorageT_: Storable
+
+#     fn val(self, idx: Int) -> Val[Self.StorageT_.sym_, Self.StorageT_.origin_]:
+#         ...
+
+
+# struct Arg[
+#     name: StaticString,
+#     AccessT: Accessor,
+#     StorageT: Storable,
+# ](ArgDesc):
+#     alias name_ = name
+#     alias size_ = StorageT.size_
+#     alias AccessT_ = AccessT
+#     alias StorageT_ = StorageT
+#     var vals: List[Val[StorageT.sym_, StorageT.origin_]]
+
+#     fn __init__(out self, target: StorageT):
+#         self.vals = List[Val[StorageT.sym_, StorageT.origin_]]()
+
+#         @parameter
+#         for i in range(StorageT.size_):
+#             self.vals.append(target[i])
+
+#     fn val(self, idx: Int) -> Val[StorageT.sym_, StorageT.origin_]:
+#         return self.vals[idx]
 
 
 struct Kernel[sym: SymConfig](Movable):
@@ -17,10 +50,33 @@ struct Kernel[sym: SymConfig](Movable):
     var stack_size: Int
     # var signature: List[AccessorVariant]
 
-    fn __init__(out self):
+    fn __init__[
+        origin_old: ImmutableOrigin,
+    ](out self, ref [origin_old]graph: Graph[sym]):
         self.graph = Graph[sym]()
-        self.order = [CallIdx(i) for i in range(len(self.graph._core.calls))]
-        self.stack_size = len(self.graph._core.vals)
+        alias origin = __origin_of(self.graph)
+        var val_map = Dict[Val[sym, origin_old], Val[sym, origin]]()
+        var call_map = Dict[Call[sym, origin_old], Call[sym, origin]]()
+
+        # @parameter
+        # for arg_idx in range(len(VariadicList(ArgTs))):
+        #     alias ArgT = ArgTs[arg_idx]
+        #     alias accessor = ArgT.AccessT_
+        #     if accessor.is_read:
+        #         continue
+        #     var new_vals = accessor.read[ArgT.size_, sym](ArgT.name_, self.graph)
+        #     for i in range(len(new_vals)):
+        #         ref val_old = rebind[Val[sym, origin_old]](args[arg_idx].val(i))
+        #         val_map[val_old] = new_vals[i]
+
+        # ref arg = args[i]
+
+        # print(i, "is read")
+        # for i in range(len(graph._core.calls)):
+        #     self.graph.add_call(graph._core[CallIdx(i)])
+        # print(len(val_map))
+        self.order = []
+        self.stack_size = 0
         # self.signature = List[AccessorVariant]()
 
 

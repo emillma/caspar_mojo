@@ -97,9 +97,9 @@ struct GraphCore[sym: SymConfig](Movable):
 
     var vals: List[ValMem[sym]]
 
-    fn __init__(out self):
-        self.vals = List[ValMem[sym]]()
-        self.calls = CallSet[sym]()
+    fn __init__(out self, capacity: Int = 128):
+        self.vals = List[ValMem[sym]](capacity=capacity)
+        self.calls = CallSet[sym](capacity=capacity)
 
     fn valmem_add(mut self, call: CallIdx, out_idx: OutIdx, out ret: ValIdx):
         ret = len(self.vals)

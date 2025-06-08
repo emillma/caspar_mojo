@@ -21,7 +21,7 @@ struct SearchResult:
 
 struct CallSet[config: SymConfig](Movable, Sized):
     alias CallT = CallMem[config]
-    var size: Int
+    var count: Int
     var capacity: Int
     var index: _DictIndex
     var entries: UnsafePointer[CallMem[config]]
@@ -33,7 +33,7 @@ struct CallSet[config: SymConfig](Movable, Sized):
 
         self.entries = UnsafePointer[Self.CallT].alloc(capacity)
         self.capacity = capacity
-        self.size = 0
+        self.count = 0
         self.index = _DictIndex(capacity)
         self.stride = sizeof[Self.CallT]()
 
@@ -43,11 +43,11 @@ struct CallSet[config: SymConfig](Movable, Sized):
         UnsafePointer(to=self).bitcast[__type_of(other)]().init_pointee_move(other^)
 
     fn __getitem__(ref self, idx: CallIdx) -> ref [self.entries] Self.CallT:
-        debug_assert(-self.size <= Int(idx) < self.size, "Index out of bounds")
+        debug_assert(-self.count <= Int(idx) < self.count, "Index out of bounds")
         if idx >= 0:
             return self.entries.offset(idx)[]
         else:
-            return self.entries.offset(idx + self.size)[]
+            return self.entries.offset(idx + self.count)[]
 
     fn search(self, call: Self.CallT) -> SearchResult:
         var slot = call.hash & (self.capacity - 1)
@@ -55,7 +55,7 @@ struct CallSet[config: SymConfig](Movable, Sized):
         while True:
             var index = self.index.get_index(self.capacity, slot)
             if index == _EMPTY:
-                return SearchResult(False, slot, self.size)
+                return SearchResult(False, slot, self.count)
             if index == _REMOVED:
                 pass
             else:
@@ -79,11 +79,11 @@ struct CallSet[config: SymConfig](Movable, Sized):
             self._maybe_resize()
         self.entries.offset(idx.index).init_pointee_move(call^)
         self.index.set_index(Int(self.capacity), Int(idx.slot), Int(idx.index))
-        self.size += 1
+        self.count += 1
 
     fn _maybe_resize(self):
-        if 3 * self.size >= 2 * self.capacity:
+        if 3 * self.count >= 2 * self.capacity:
             debug_assert(False, "Resizing not implemented")
 
     fn __len__(self) -> Int:
-        return self.size
+        return self.count

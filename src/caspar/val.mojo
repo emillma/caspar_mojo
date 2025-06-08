@@ -35,6 +35,7 @@ struct Call[sym: SymConfig, origin: ImmutableOrigin](KeyElement, Writable):
             if i == Int(self.func().type_idx()):
                 alias T = sym.func_types[i]
                 self.func()[T].write_call(self, writer)
+                return
 
     fn __eq__(self, other: Self) -> Bool:
         return self.graph == other.graph and self.idx == other.idx

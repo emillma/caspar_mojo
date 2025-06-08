@@ -1,9 +1,9 @@
 # from .callable import Callable, CallableVariant
 from .val import Call
-from .sysconfig import GraphConfig, SymConfig, Config
+from .sysconfig import SymConfig
 from os import abort
 from utils.static_tuple import StaticTuple
-from .context import Context
+from caspar.compile import Context
 from .utils import multihash
 from memory import UnsafePointer
 from caspar.collections import (

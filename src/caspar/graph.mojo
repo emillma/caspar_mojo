@@ -21,7 +21,8 @@ struct Graph[sym: SymConfig](Movable):
     """Exposed interface for the graph."""
 
     alias LockToken = Int
-
+    alias Val = Val[sym]
+    alias Call = Call[sym]
     var _core: GraphCore[sym]
     var _locked: Bool
 
