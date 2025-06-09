@@ -42,19 +42,13 @@ def main():
     var py = PtrArg(y)
     var pz = PtrArg(z)
     alias mykernel = Kernel[foo, PtrArg[4], PtrArg[4], PtrArg[4]].inner
-    mykernel(px, py, pz)
-    # kernel[foo](px, py, pz)
+    mykernel(px, py, pz)  # run on CPU
     for i in range(4):
         print(x[i], y[i], z[i])
 
     var ctx = DeviceContext()
     kernel = ctx.compile_function[
-        mykernel,
-        dump_asm = Path("file.ptx"),
-        _ptxas_info_verbose=True,
+        mykernel, dump_asm = Path("file.ptx"), _ptxas_info_verbose=True
     ]()
-    # kernel.launch(...)
-    # print(x.unsafe_ptr()[], y.unsafe_ptr()[], z.unsafe_ptr()[])
 
     print("end")
-    # accessors.ReadUnique[Vector[4]]

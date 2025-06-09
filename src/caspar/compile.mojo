@@ -29,22 +29,19 @@ struct KernelDesc(Movable):
 
 
 struct Kernel[desc_fn: fn () -> KernelDesc, *ArgTs: Argument]:
+    alias desc = desc_fn()
+
     @staticmethod
     fn inner(owned *args: *ArgTs):
-        alias desc = desc_fn()
-        alias ContextT = Context[desc.stack_size, *ArgTs]
+        alias ContextT = Context[Self.desc.stack_size, *ArgTs]
         var context = ContextT(args^)
 
         @parameter
-        for i in range(len(desc.order)):
-            alias callmem = desc.graph._core[desc.order[i]]
-            alias funcvar = callmem.func
-            alias FT = FuncVariant.Ts[funcvar.type_idx()]
-            alias func = funcvar[FT]
-
-            FT.evaluate[args = callmem.args, outs = callmem.outs, data = func.data()](
-                context
-            )
+        for i in range(len(Self.desc.order)):
+            alias callmem = Self.desc.graph._core[Self.desc.order[i]]
+            alias FT = FuncVariant.Ts[callmem.func.type_idx()]
+            alias func = callmem.func[FT]
+            FT.evaluate[callmem.args, callmem.outs, func.data()](context)
 
 
 @register_passable
