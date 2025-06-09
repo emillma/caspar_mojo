@@ -3,16 +3,14 @@ from sys.intrinsics import sizeof
 from ..utils import multihash
 
 
+trait NamedIndexT(Movable, Copyable, Indexer, KeyElement, Writable):
+    alias name_: StaticString
+
+
 @fieldwise_init("implicit")
 @register_passable("trivial")
-struct NamedIndex[T: StringLiteral](
-    Movable,
-    Copyable,
-    Indexer,
-    # Comparable,
-    KeyElement,
-    Writable,
-):
+struct NamedIndex[T: StringLiteral](NamedIndexT):
+    alias name_ = StaticString(T)
     var value: Int
 
     fn __index__(self) -> __mlir_type.index:
@@ -64,8 +62,8 @@ alias OutIdx = NamedIndex["OutIdx"]
 alias RegIdx = NamedIndex["RegIdx"]
 
 
-struct IndexList[ElemT: IndexT, stack_size: Int = 4](
-    Sized, Copyable, Movable, ExplicitlyCopyable, Hashable
+struct IndexList[ElemT: NamedIndexT, stack_size: Int = 4](
+    Sized, Copyable, Movable, ExplicitlyCopyable, Hashable, Writable
 ):
     var capacity: UInt32
     var count: UInt32
@@ -185,8 +183,16 @@ struct IndexList[ElemT: IndexT, stack_size: Int = 4](
     ](ref [origin]self) -> _IndexListIter[ElemT, stack_size, origin]:
         return _IndexListIter[ElemT, stack_size, origin](self)
 
+    fn write_to[W: Writer](self, mut writer: W):
+        writer.write(ElemT.name_, "[")
+        for i in range(self.count):
+            if i > 0:
+                writer.write(", ")
+            writer.write(Int(self[i]))
+        writer.write("]")
 
-struct _IndexListIter[ElemT: IndexT, stack_size: Int, origin: Origin](
+
+struct _IndexListIter[ElemT: NamedIndexT, stack_size: Int, origin: Origin](
     Copyable, Movable
 ):
     var index: Int

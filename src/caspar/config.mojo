@@ -6,13 +6,13 @@ from sys.intrinsics import _type_is_eq
 from os import abort
 from utils import Variant
 from sys.info import sizeof
-from caspar.collections import variants
+from caspar.collections import CallableVariant, AccessorVariant
 from caspar.graph import Graph
 from caspar import accessors
 from compile.reflection import get_type_name
 
 
-alias FuncVariant = variants.FuncVariant[
+alias FuncVariant = CallableVariant[
     funcs.Symbol,
     funcs.ReadValue[1],
     funcs.WriteValue[1],
@@ -27,7 +27,7 @@ alias FuncVariant = variants.FuncVariant[
     funcs.StoreZero,
 ]
 
-alias AccessVariant = variants.AccessorVariant[
+alias AccessVariant = AccessorVariant[
     accessors.WriteUnique,
     accessors.ReadUnique,
 ]

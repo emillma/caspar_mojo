@@ -10,6 +10,7 @@ from sys import sizeof, alignof
 from utils.lock import BlockingSpinLock
 from os.atomic import Atomic
 from caspar.config import AccessVariant
+from caspar.accessors import Accessor
 
 
 @explicit_destroy
@@ -102,4 +103,11 @@ struct Graph(GraphT):
 
         for arg in args:
             if arg.is_read:
-                print("Read argument at index")
+                var val_list = IndexList[ValIdx]()
+
+                @parameter
+                fn inner[T: Accessor](val: T):
+                    val_list = val.read_into(new_graph)
+
+                arg.do[inner]()
+                print(val_list)
