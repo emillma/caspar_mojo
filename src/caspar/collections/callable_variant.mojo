@@ -6,6 +6,8 @@ from sys.intrinsics import _type_is_eq
 from memory import UnsafePointer
 from caspar.accessors import Accessor
 from builtin.range import _ZeroStartingRange
+from caspar.funcs import FuncInfo
+from compile.reflection import get_type_name
 
 
 struct CallableVariant[*Ts: Callable](Hashable):
@@ -56,8 +58,9 @@ struct CallableVariant[*Ts: Callable](Hashable):
     fn do[func: fn[T: Callable] (val: T) capturing](self):
         @parameter
         for i in Self.range:
-            if i == Int(self.type_idx()):
-                func(self.unsafe_get[Ts[i]]())
+            if self.type_idx() == i:
+                alias T = Ts[i]
+                func(self[T])
                 return
 
     fn __del__(owned self):
@@ -69,11 +72,14 @@ struct CallableVariant[*Ts: Callable](Hashable):
                 self._get_ptr[Ts[i]]().destroy_pointee()
                 return
 
-    fn __getitem__[T: Self.Trait](ref self) -> ref [self] T:
-        if not self.isa[T]():
-            abort("get: wrong variant type")
-
-        return self.unsafe_get[T]()
+    fn __getitem__[T: Self.Trait, *, unsafe: Bool = False](ref self) -> ref [self] T:
+        @parameter
+        if not unsafe:
+            if not self.isa[T]():
+                abort("get: wrong variant type")
+        alias name = get_type_name[T]()
+        debug_assert(self.isa[T](), name + "!=" + String(self.type_idx()))
+        return self._get_ptr[T]()[]
 
     @always_inline("nodebug")
     fn _get_ptr[T: Self.Trait](self) -> UnsafePointer[T]:
@@ -97,10 +103,6 @@ struct CallableVariant[*Ts: Callable](Hashable):
         alias idx = Self.type_idx_of[T]()
         return self.type_idx() == idx
 
-    fn unsafe_get[T: Self.Trait](ref self) -> ref [self] T:
-        debug_assert(self.isa[T](), "get: wrong variant type")
-        return self._get_ptr[T]()[]
-
     @staticmethod
     fn type_idx_of[T: Self.Trait]() -> Int:
         @parameter
@@ -110,6 +112,15 @@ struct CallableVariant[*Ts: Callable](Hashable):
         debug_assert(False, "type_idx_of: type not found in access_types")
         return Self._sentinel
 
+    fn info(self, out ret: FuncInfo):
+        __mlir_op.`lit.ownership.mark_initialized`(__get_mvalue_as_litref(ret))
+
+        @parameter
+        fn inner[T: Self.Trait](func: T):
+            ret = T.info
+
+        self.do[inner]()
+
     fn __eq__(self, other: Self) -> Bool:
         if self.hash != other.hash or self.type_idx() != other.type_idx():
             return False
@@ -118,7 +129,7 @@ struct CallableVariant[*Ts: Callable](Hashable):
         for i in Self.range:
             if i == Int(self.type_idx()):
                 alias T = Ts[i]
-                return self.unsafe_get[T]() == other.unsafe_get[T]()
+                return self[T, unsafe=True] == other[T, unsafe=True]
         return False
 
     fn __ne__(self, other: Self) -> Bool:

@@ -27,10 +27,10 @@ alias FuncVariant = CallableVariant[
     funcs.StoreZero,
 ]
 
-alias AccessVariant = AccessorVariant[
-    accessors.WriteUnique,
-    accessors.ReadUnique,
-]
+# alias AccessVariant = AccessorVariant[
+#     accessors.WriteUnique,
+#     accessors.ReadUnique,
+# ]
 # struct DefaultSymConfig(SymConfig):
 #     alias FuncVariant = variants.FuncVariant[
 #         funcs.Symbol,

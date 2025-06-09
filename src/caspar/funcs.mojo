@@ -19,14 +19,14 @@ alias Stack = StaticTuple[Float32, _]
 
 
 struct FuncInfo(EqualityComparable):
-    var fname: String
+    var fname: StaticString
     var n_args: Int
     var n_outs: Int
     var hash: UInt
 
     fn __init__(
         out self,
-        fname: String,
+        fname: StaticString,
         n_args: Int,
         n_outs: Int,
     ):

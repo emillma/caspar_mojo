@@ -1,6 +1,5 @@
 from .val import Call
 from memory import UnsafePointer
-from .sysconfig import SymConfig
 from .funcs import Callable, AnyFunc
 from sys.intrinsics import sizeof, _type_is_eq
 from collections import Set
@@ -68,8 +67,14 @@ struct CallMem(Movable, ExplicitlyCopyable, Hashable):
     var flags: CallFlags
     var func: FuncVariant
 
+    fn __init__(out self, owned func: FuncVariant, owned args: IndexList[ValIdx]):
+        self.func = func^
+        self.args = args^
+        self.hash = 0
+        self.outs = IndexList[ValIdx](capacity=self.func.info().n_outs)
+        self.flags = CallFlags()
+
     fn __init__[FT: Callable](out self, owned func: FT, owned args: IndexList[ValIdx]):
-        # constrained[sym.supports[FT](), "Type not supported"]()
         debug_assert(len(args) == FT.info.n_args or FT.info.n_args == -1)
         self.func = func^
         self.args = args^
@@ -112,10 +117,12 @@ struct GraphCore(Movable):
     fn __getitem__(ref self, idx: ValIdx) -> ref [self.vals[idx]] ValMem:
         return self.vals[idx]
 
-    fn callmem_add[
-        FT: Callable
-    ](mut self, owned func: FT, owned args: IndexList[ValIdx], out ret: CallIdx):
-        alias ftype_idx = Self.ftype_idx[FT]()
+    fn callmem_add(
+        mut self,
+        owned func: FuncVariant,
+        owned args: IndexList[ValIdx],
+        out ret: CallIdx,
+    ):
         var call = CallMem(func, args^)
         var idx = self.calls.search(call)
         ret = idx.index
@@ -126,14 +133,10 @@ struct GraphCore(Movable):
             except KeyError:
                 debug_assert(False)
         if not idx.found:
-            for i in range(FT.info.n_outs):
+            for i in range(func.info().n_outs):
                 call.outs.append(self.valmem_add(ret, i))
 
             call.hash = hash(call.func)
             for arg in call.args:
                 hashupdate(call.hash, self[arg])
             self.calls.insert(call^, idx)
-
-    @staticmethod
-    fn ftype_idx[FT: Callable]() -> Int:
-        return sym.func_idx[FT]()

@@ -9,59 +9,73 @@ from collections import BitSet
 from memory import UnsafePointer
 from sys import sizeof, alignof
 from sys.intrinsics import _type_is_eq
-from caspar.config import AccessVariant
 
 
 trait Accessor(Copyable & Movable):
     alias is_read: Bool
 
-    fn read_into(self, graph: Graph, out ret: IndexList[ValIdx]):
+    fn read_and_map(self, graph: Graph, mut val_map: Dict[ValIdx, ValIdx]):
         ...
 
-    fn write_from[T: Storable](self, data: T):
+    fn map_and_write(self, graph: Graph, mut val_map: Dict[ValIdx, ValIdx]):
         ...
 
 
-@value
-struct AccessorData:
+struct AccessorData(Copyable & Movable):
     var name: StaticString
     var size: Int
     var type_idx: Int
+    var indices: IndexList[ValIdx]
+
+    fn __init__[T: Storable](out self, name: StaticString, type_idx: Int, target: T):
+        self.name = name
+        self.size = T.size_
+        self.type_idx = type_idx
+        self.indices = IndexList[ValIdx](capacity=T.size_)
+        for i in range(T.size_):
+            self.indices.append(target[i].idx)
 
 
-struct ReadUnique(Accessor):
+struct ReadUnique[StorageT: Storable](Accessor):
     alias is_read = True
+    var target: StorageT
     var name: StaticString
-    var target: AccessorData
 
-    fn __init__[S: Storable](out self, target: S, name: StaticString = ""):
-        self.target = AccessorData(name, S.size_, AccessVariant.type_idx_of[Self]())
+    fn __init__(out self, target: StorageT, name: StaticString = ""):
+        self.target = target
         self.name = name
 
-    fn read_into(self, graph: Graph, out ret: IndexList[ValIdx]):
-        ret = IndexList[ValIdx](capacity=self.target.size)
-        for i in range(self.target.size):
-            ret.append(graph.add_call(funcs.ReadValue[1](self.name, i))[].outs[0])
+    fn read_and_map(self, graph: Graph, mut val_map: Dict[ValIdx, ValIdx]):
+        for i in range(StorageT.size_):
+            var call = graph.add_call(funcs.ReadValue[1](self.name, i))
+            val_map[self.target[i].idx] = call[].outs[0]
 
-    fn write_from[T: Storable](self, data: T):
+    fn map_and_write(self, graph: Graph, mut val_map: Dict[ValIdx, ValIdx]):
         debug_assert(False, "ReadUnique does not support writing from data")
 
 
-struct WriteUnique(Accessor):
+struct WriteUnique[StorageT: Storable](Accessor):
     alias is_read = False
-    var target: AccessorData
-    var name: StaticString
+    var target: StorageT
+    var name: String
 
-    fn __init__[S: Storable](out self, target: S, name: StaticString = ""):
-        self.target = AccessorData(name, S.size_, AccessVariant.type_idx_of[Self]())
+    fn __init__(out self, target: StorageT, name: StaticString = ""):
+        self.target = target
         self.name = name
 
-    fn read_into(self, graph: Graph, out ret: IndexList[ValIdx]):
+    fn read_and_map(self, graph: Graph, mut val_map: Dict[ValIdx, ValIdx]):
         debug_assert(False, "WriteUnique does not support reading into an IndexList")
-        ret = IndexList[ValIdx]()
 
-    fn write_from[T: Storable](self, data: T):
-        constrained[not Self.is_read, "Not a write accessor"]()
+    fn map_and_write(self, graph: Graph, mut val_map: Dict[ValIdx, ValIdx]):
+        for i in range(StorageT.size_):
+            graph.copy_val(self.target[i], val_map)
+
+        # for i in range(self.data.size):
+        #     graph.copy_val(
+        #         self.data.indices[i], funcs.WriteValue[1](self.name, i).outs[0]
+        #     )
+        #     var call = graph.add_call(funcs.ReadValue[1](self.data.name, i))
+        #     val_map[self.data.indices[i]] = call[].outs[0]
 
     # @staticmethod
     # fn read[

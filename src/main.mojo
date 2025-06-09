@@ -11,12 +11,13 @@ from sys.intrinsics import _type_is_eq
 fn foo():
     var graph = Graph()
     var x = Vector[4]("x", graph)
+    var _ = Vector[4]("__", graph)
     var y = Vector[4]("y", graph)
 
     var bar = graph.make_kernel(
         accessors.ReadUnique(x, "x"),
         accessors.ReadUnique(y, "y"),
-        accessors.WriteUnique(x + y, "z"),
+        accessors.WriteUnique(x + y + x, "z"),
     )
 
 

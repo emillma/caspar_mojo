@@ -70,7 +70,7 @@ struct Graph(GraphT):
 
         ret = Call[origin](
             Pointer(to=self),
-            self._mut_core(token).callmem_add[FT](func, arglist^),
+            self._mut_core(token).callmem_add(func, arglist^),
         )
         self._release(token^)
 
@@ -95,19 +95,65 @@ struct Graph(GraphT):
             return UnsafePointer(to=self) == UnsafePointer(to=rebind[Self](other))
         return False
 
-    fn make_kernel(self, owned *args: AccessVariant):
+    fn copy_val(
+        self,
+        val: Val,
+        mut val_map: Dict[ValIdx, ValIdx],
+        out ret: Val[__origin_of(self)],
+    ):
+        debug_assert(not val.graph[].same_as(self))
+        var token = self._aquire()
+        ret = Val(Pointer(to=self), self.copy_val_inner(val, val_map, token))
+        self._release(token^)
+
+    fn copy_val_inner(
+        self,
+        other_val: Val,
+        mut val_map: Dict[ValIdx, ValIdx],
+        token: LockToken,
+        out ret: ValIdx,
+    ):
+        if val_idx := val_map.get(other_val.idx):
+            return val_idx.unsafe_value()
+        # return val_idx.unsafe_value()
+
+        var n_args = len(other_val.call()[].args)
+        var args = IndexList[ValIdx](capacity=n_args)
+
+        for i in range(n_args):
+            args[i] = self.copy_val_inner(other_val.call().arg(i), val_map, token)
+        var call_idx = self._mut_core(token).callmem_add(other_val.call().func(), args^)
+        ref callmem = self._core[call_idx]
+        for i in range(len(callmem.outs)):
+            val_map[other_val.call()[].outs[i]] = callmem.outs[i]
+        return callmem.outs[other_val[].out_idx]
+        # return 0
+        # if call_idx := call_map.get(val[].call):
+        #     return Val(Pointer(to=self), self._core[call_idx].outs[val.out_idx])
+
+        # var call_idx = val.call().idx
+        # if call_idx in call_map:
+        #     return Val(
+        #         Pointer(to=self),
+        #         self._core[call_idx]
+        #     )
+
+    fn make_kernel[*Ts: Accessor](self, owned *args: *Ts):
         """Create a kernel call with the given arguments."""
         var new_graph = Graph()
         var val_map = Dict[ValIdx, ValIdx]()
-        var call_map = Dict[CallIdx, CallIdx]()
 
-        for arg in args:
-            if arg.is_read:
-                var val_list = IndexList[ValIdx]()
+        @parameter
+        for i in range(len(VariadicList(Ts))):
+            var arg: Ts[i] = args[i]
+            if Ts[i].is_read:
+                arg.read_and_map(new_graph, val_map)
 
-                @parameter
-                fn inner[T: Accessor](val: T):
-                    val_list = val.read_into(new_graph)
+        @parameter
+        for i in range(len(VariadicList(Ts))):
+            var arg: Ts[i] = args[i]
+            if not Ts[i].is_read:
+                arg.map_and_write(new_graph, val_map)
 
-                arg.do[inner]()
-                print(val_list)
+        for item in val_map.items():
+            print(item.key, item.value)
