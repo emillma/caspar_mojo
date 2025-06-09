@@ -2,84 +2,26 @@ from .collections import RegIdx
 from .graph import Graph
 from .graph_core import GraphCore, CallIdx, ValIdx, IndexList
 
-# from .storage import Storable
-from caspar.sysconfig import DefaultSymConfig, SymConfig
 from memory import UnsafePointer
 from utils.static_tuple import StaticTuple
 from caspar.accessors import Accessor
 from caspar.storage import Storable
 from caspar.val import Val, Call
+from caspar.args import ArgType, ArgKey
 
 
-# from caspar.collections import AccessorVariant
-trait ArgDesc(Movable):
-    alias name_: StaticString
-    alias size_: Int
-    alias AccessT_: Accessor
-    alias StorageT_: Storable
-
-    fn val(self, idx: Int) -> Val[Self.StorageT_.sym_, Self.StorageT_.origin_]:
-        ...
-
-
-struct Arg[
-    name: StaticString,
-    AccessT: Accessor,
-    StorageT: Storable,
-](ArgDesc):
-    alias name_ = name
-    alias size_ = StorageT.size_
-    alias AccessT_ = AccessT
-    alias StorageT_ = StorageT
-    var vals: List[Val[StorageT.sym_, StorageT.origin_]]
-
-    fn __init__(out self, target: StorageT):
-        self.vals = List[Val[StorageT.sym_, StorageT.origin_]]()
-
-        @parameter
-        for i in range(StorageT.size_):
-            self.vals.append(target[i])
-
-    fn val(self, idx: Int) -> Val[StorageT.sym_, StorageT.origin_]:
-        return self.vals[idx]
-
-
-struct Kernel[sym: SymConfig](Movable):
-    var graph: Graph[sym]
+struct Kernel(Movable):
+    var graph: Graph
+    var arg_keys: List[ArgKey]
     var order: List[CallIdx]
     var stack_size: Int
     # var signature: List[AccessorVariant]
 
-    fn __init__[
-        origin_old: ImmutableOrigin, *ArgTs: ArgDesc
-    ](out self, ref [origin_old]graph: Graph[sym], *args: *ArgTs):
-        self.graph = Graph[sym]()
-        # alias origin = __origin_of(self.graph)
-        var val_map = Dict[ValIdx, ValIdx]()
-        var call_map = Dict[CallIdx, CallIdx]()
-
-        @parameter
-        for arg_idx in range(len(VariadicList(ArgTs))):
-            alias ArgT = ArgTs[arg_idx]
-            alias accessor = ArgT.AccessT_
-
-            @parameter
-            if accessor.is_read:
-                var new_vals = accessor.read[ArgT.size_, sym](ArgT.name_, self.graph)
-                for i in range(len(new_vals)):
-                    ref val_old = rebind[Val[sym, origin_old]](args[arg_idx].val(i))
-                    debug_assert(val_old.idx not in val_map, "Value already mapped")
-                    val_map[val_old.idx] = new_vals[i].idx
-
-        # ref arg = args[i]
-
-        # print(i, "is read")
-        # for i in range(len(graph._core.calls)):
-        #     self.graph.add_call(graph._core[CallIdx(i)])
-        # print(len(val_map))
-        self.order = []
-        self.stack_size = 0
-        # self.signature = List[AccessorVariant]()
+    fn __init__(out self, owned graph: Graph, arg_keys: List[ArgKey]):
+        self.graph = graph
+        self.arg_keys = arg_keys
+        self.order = [i for i in range(len(graph._core.calls))]
+        self.stack_size = len(graph._core.vals)
 
 
 # fn kernel[desc_fn: fn () -> KernelData[DefaultGraphConfig]]():

@@ -106,7 +106,7 @@ struct Symbol(Callable):
 @register_passable("trivial")
 struct ReadValue[size: Int = 1](Callable):
     alias info = FuncInfo("ReadValue" + String(size), 0, size)
-    alias DataT = Tuple[StaticString, Int]
+    alias DataT = Tuple[String, Int]
 
     var argname: StaticString
     var offset: Int

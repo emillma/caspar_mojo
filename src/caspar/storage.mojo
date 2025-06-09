@@ -57,10 +57,7 @@ trait Storable(Movable, Copyable, Sized, Writable):
 
 
 @fieldwise_init
-struct Vector[
-    size: Int,
-    origin: ImmutableOrigin,
-](Storable):
+struct Vector[size: Int, origin: ImmutableOrigin](Storable):
     alias size_ = size
     alias origin_ = origin
     var data: SymbolStorage[size, origin]

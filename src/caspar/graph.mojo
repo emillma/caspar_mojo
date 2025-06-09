@@ -9,7 +9,7 @@ from sys.intrinsics import _type_is_eq
 from sys import sizeof, alignof
 from utils.lock import BlockingSpinLock
 from os.atomic import Atomic
-from caspar.config import AccessVariant
+from caspar.compile import Kernel
 from caspar.accessors import Accessor
 
 
@@ -127,16 +127,6 @@ struct Graph(GraphT):
         for i in range(len(callmem.outs)):
             val_map[other_val.call()[].outs[i]] = callmem.outs[i]
         return callmem.outs[other_val[].out_idx]
-        # return 0
-        # if call_idx := call_map.get(val[].call):
-        #     return Val(Pointer(to=self), self._core[call_idx].outs[val.out_idx])
-
-        # var call_idx = val.call().idx
-        # if call_idx in call_map:
-        #     return Val(
-        #         Pointer(to=self),
-        #         self._core[call_idx]
-        #     )
 
     fn make_kernel[*Ts: Accessor](self, owned *args: *Ts):
         """Create a kernel call with the given arguments."""
