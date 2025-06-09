@@ -8,4 +8,5 @@ from .named_index import (
     RegIdx,
 )
 from .callset import CallSet
-from .variant_func import FuncVariant
+
+# from .variants import FuncVariant

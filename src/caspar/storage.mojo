@@ -3,9 +3,9 @@ from caspar.calliter import CallChildIter
 from caspar.collections import CallSet, CallIdx
 from caspar.collections import ValIdx, IndexList
 from caspar.funcs import AnyFunc
-from caspar.graph import Graph
+from caspar.graph import Graph, GraphT
 from caspar.graph_core import GraphCore
-from caspar.sysconfig import SymConfig
+from caspar.config import FuncVariant
 from caspar.val import Val, Call
 from collections import BitSet, Set
 from memory import UnsafePointer
@@ -15,26 +15,23 @@ from caspar.accessors import Accessor
 from compile.reflection import get_type_name
 
 
-struct SymbolStorage[size: Int, sym: SymConfig, origin: ImmutableOrigin](
-    Movable, Copyable, Sized
-):
-    alias ElemT = Val[sym, origin]
+struct SymbolStorage[size: Int, origin: ImmutableOrigin](Movable, Copyable, Sized):
+    alias ElemT = Val[origin]
 
     var indices: IndexList[ValIdx, Self.size]
     var assigned: BitSet[Self.size]
-    var graph: Pointer[Graph[sym], origin]
+    var graph: Pointer[Graph, origin]
 
-    fn __init__(out self: Self, ref [origin]graph: Graph[sym]):
+    fn __init__(out self: Self, ref [origin]graph: Graph):
         self.graph = Pointer(to=graph)
         self.indices = IndexList[ValIdx, Self.size]()
         self.assigned = BitSet[Self.size]()
 
-    fn __getitem__(self, idx: Int) -> Val[sym, origin]:
+    fn __getitem__(self, idx: Int) -> Val[origin]:
         debug_assert(self.assigned.test(idx), "Index not valid")
         return Val(self.graph, self.indices[idx])
 
-    fn __setitem__(mut self, idx: Int, owned value: Val[sym, origin]):
-        constrained[_type_is_eq[sym, value.sym]()]()
+    fn __setitem__(mut self, idx: Int, owned value: Val[origin]):
         if not value.graph[].same_as(self.graph[]):
             debug_assert(False, "Cannot rebind to a different graph yet")
         debug_assert(not self.assigned.test(idx), "Index not valid")
@@ -45,53 +42,48 @@ struct SymbolStorage[size: Int, sym: SymConfig, origin: ImmutableOrigin](
         return len(self.indices)
 
 
-trait Storable(Movable, Copyable, Sized):
-    alias size_: Int
-    alias sym_: SymConfig
-    alias origin_: ImmutableOrigin
+# trait Storable(Movable, Copyable, Sized):
+#     alias size_: Int
+#     alias GT: GraphT
+#     alias sym_: SymConfig
+#     alias origin_: ImmutableOrigin
 
-    fn graph(self) -> ref [Self.origin_] Graph[Self.sym_]:
-        ...
+#     fn graph(self) -> ref [Self.origin_] Graph[Self.sym_]:
+#         ...
 
-    fn __getitem__(self, idx: Int) -> Val[Self.sym_, Self.origin_]:
-        ...
+#     fn __getitem__(self, idx: Int) -> Val[Self.sym_, Self.origin_]:
+#         ...
 
-    fn __setitem__(mut self, idx: Int, owned value: Val[Self.sym_, Self.origin_]):
-        ...
+#     fn __setitem__(mut self, idx: Int, owned value: Val[Self.sym_, Self.origin_]):
+#         ...
 
 
 @fieldwise_init
 struct Vector[
     size: Int,
-    sym: SymConfig,
     origin: ImmutableOrigin,
-](Storable, Writable):
+](Writable):
     alias size_ = size
-    alias sym_ = sym
     alias origin_ = origin
-    var data: SymbolStorage[size, sym, origin]
+    var data: SymbolStorage[size, origin]
 
     fn __init__[
-        sym: SymConfig, origin: ImmutableOrigin
-    ](
-        out self: Vector[size, sym, origin],
-        name: StaticString,
-        ref [origin]graph: Graph[sym],
-    ):
-        self.data = SymbolStorage[size, sym, origin](graph)
+        origin: ImmutableOrigin
+    ](out self: Vector[size, origin], name: StaticString, ref [origin]graph: Graph,):
+        self.data = SymbolStorage[size, origin](graph)
 
         @parameter
         for i in range(size):
             self.data[i] = graph.add_call(funcs.Symbol(name, i))[0]
 
-    fn __getitem__(self, idx: Int) -> Val[sym, origin]:
+    fn __getitem__(self, idx: Int) -> Val[origin]:
         return self.data[idx]
 
-    fn __setitem__(mut self, idx: Int, owned value: Val[sym, origin]):
+    fn __setitem__(mut self, idx: Int, owned value: Val[origin]):
         self.data[idx] = value
 
     fn __add__(self, other: Self, out ret: Self):
-        data = SymbolStorage[size, sym, origin](graph=self.graph())
+        data = SymbolStorage[size, origin](graph=self.graph())
         for i in range(size):
             data[i] = self.graph().add_call(funcs.Add(), self[i], other[i])[0]
         ret = Self(data)
@@ -99,7 +91,7 @@ struct Vector[
     fn __len__(self) -> Int:
         return len(self.data)
 
-    fn graph(self) -> ref [origin] Graph[sym]:
+    fn graph(self) -> ref [origin] Graph:
         return self.data.graph[]
 
     fn to_storage(self) -> SymbolStorage[size, sym, origin]:

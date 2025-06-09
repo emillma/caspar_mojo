@@ -13,14 +13,15 @@ from .collections import (
 )
 from collections import BitSet
 from caspar.utils import hash
-from caspar.collections import CallSet, FuncVariant
+from caspar.collections import CallSet
 from caspar.collections.callset import SearchResult
 from .utils import multihash, hashupdate
+from caspar.config import FuncVariant
 
 alias BytePtr = UnsafePointer[Byte]
 
 
-struct ValMem[config: SymConfig](Movable, Copyable, Hashable):
+struct ValMem(Movable, Copyable, Hashable):
     var call: CallIdx
     var out_idx: OutIdx
     var uses: Dict[CallIdx, IndexList[ArgIdx]]
@@ -60,12 +61,12 @@ struct CallFlags:
         return self.data == other.data
 
 
-struct CallMem[sym: SymConfig](Movable, ExplicitlyCopyable, Hashable):
+struct CallMem(Movable, ExplicitlyCopyable, Hashable):
     var args: IndexList[ValIdx]
     var outs: IndexList[ValIdx]
     var hash: UInt
     var flags: CallFlags
-    var func: FuncVariant[sym]
+    var func: FuncVariant
 
     fn __init__[FT: Callable](out self, owned func: FT, owned args: IndexList[ValIdx]):
         # constrained[sym.supports[FT](), "Type not supported"]()
@@ -90,32 +91,32 @@ struct CallMem[sym: SymConfig](Movable, ExplicitlyCopyable, Hashable):
         return self.func == other.func and self.args == other.args
 
 
-struct GraphCore[sym: SymConfig](Movable):
+struct GraphCore(Movable):
     """The symbolic graph core that holds the call sets and value memory."""
 
-    var calls: CallSet[sym]
+    var calls: CallSet
 
-    var vals: List[ValMem[sym]]
+    var vals: List[ValMem]
 
     fn __init__(out self, capacity: Int = 128):
-        self.vals = List[ValMem[sym]](capacity=capacity)
-        self.calls = CallSet[sym](capacity=capacity)
+        self.vals = List[ValMem](capacity=capacity)
+        self.calls = CallSet(capacity=capacity)
 
     fn valmem_add(mut self, call: CallIdx, out_idx: OutIdx, out ret: ValIdx):
         ret = len(self.vals)
-        self.vals.append(ValMem[sym](call=call, out_idx=out_idx))
+        self.vals.append(ValMem(call=call, out_idx=out_idx))
 
-    fn __getitem__(ref self, idx: CallIdx) -> ref [self.calls[idx]] CallMem[sym]:
+    fn __getitem__(ref self, idx: CallIdx) -> ref [self.calls[idx]] CallMem:
         return self.calls[idx]
 
-    fn __getitem__(ref self, idx: ValIdx) -> ref [self.vals[idx]] ValMem[sym]:
+    fn __getitem__(ref self, idx: ValIdx) -> ref [self.vals[idx]] ValMem:
         return self.vals[idx]
 
     fn callmem_add[
         FT: Callable
     ](mut self, owned func: FT, owned args: IndexList[ValIdx], out ret: CallIdx):
         alias ftype_idx = Self.ftype_idx[FT]()
-        var call = CallMem[sym](func, args^)
+        var call = CallMem(func, args^)
         var idx = self.calls.search(call)
         ret = idx.index
 

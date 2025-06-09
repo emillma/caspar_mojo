@@ -1,4 +1,4 @@
-from .sysconfig import SymConfig, GraphConfig
+from caspar.config import FuncVariant
 from memory import UnsafePointer
 from . import funcs
 from .funcs import Callable, AnyFunc, StoreOne, StoreZero, StoreFloat
@@ -17,22 +17,24 @@ struct LockToken:
         pass
 
 
-struct Graph[sym: SymConfig](Movable):
+trait GraphT(Movable):
+    ...
+
+
+struct Graph(GraphT):
     """Exposed interface for the graph."""
 
     alias LockToken = Int
-    alias Val = Val[sym]
-    alias Call = Call[sym]
-    var _core: GraphCore[sym]
+    var _core: GraphCore
     var _locked: Bool
 
     fn __init__(out self):
-        self._core = GraphCore[sym]()
+        self._core = GraphCore()
         self._locked = 0
 
     fn _mut_core(
         self, token: LockToken
-    ) -> ref [MutableOrigin.cast_from[__origin_of(self._core)].result] GraphCore[sym]:
+    ) -> ref [MutableOrigin.cast_from[__origin_of(self._core)].result] GraphCore:
         return UnsafePointer(to=self._core).origin_cast[
             True, MutableOrigin.cast_from[__origin_of(self._core)].result
         ]()[]
@@ -55,8 +57,8 @@ struct Graph[sym: SymConfig](Movable):
     ](
         ref [origin]self: Self,
         owned func: FT,
-        owned *args: Val[sym, origin],
-        out ret: Call[sym, origin],
+        owned *args: Val[origin],
+        out ret: Call[origin],
     ):
         var token = self._aquire()
         var arglist = IndexList[ValIdx](capacity=len(args))
@@ -64,7 +66,7 @@ struct Graph[sym: SymConfig](Movable):
         for i in range(len(args)):
             arglist.append(args[i].idx)
 
-        ret = Call[sym, origin](
+        ret = Call[origin](
             Pointer(to=self),
             self._mut_core(token).callmem_add[FT](func, arglist^),
         )
@@ -76,7 +78,7 @@ struct Graph[sym: SymConfig](Movable):
             return False
         return UnsafePointer(to=self) == UnsafePointer(to=rebind[Self](other))
 
-    fn take_core(owned self, out core: GraphCore[sym]):
+    fn take_core(owned self, out core: GraphCore):
         """Take ownership of the core, leaving the graph empty."""
         var token = self._aquire()
         core = self._core^
