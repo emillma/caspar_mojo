@@ -10,6 +10,7 @@ from sys import sizeof, alignof
 from utils.lock import BlockingSpinLock
 from caspar.compile import KernelDesc
 from caspar.accessors import Accessor
+from memory import stack_allocation
 
 
 @explicit_destroy

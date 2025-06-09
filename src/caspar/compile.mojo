@@ -7,10 +7,11 @@ from utils.static_tuple import StaticTuple
 from caspar.accessors import Accessor
 from caspar.storage import Storable
 from caspar.val import Val, Call
-from caspar.kernel_args import Argument
+from caspar.kernel_args import Argument, PtrArg
 from caspar.config import FuncVariant
 from benchmark import keep
 from compile.reflection import get_type_name
+from memory import stack_allocation
 
 
 struct KernelDesc(Movable):
@@ -27,25 +28,35 @@ struct KernelDesc(Movable):
         self.stack_size = len(self.graph._core.vals)
 
 
-fn kernel[desc_fn: fn () -> KernelDesc, *Ts: Argument](owned *args: *Ts):
-    alias desc = desc_fn()
-    var context = Context[32, *Ts](args^)
+struct Kernel[desc_fn: fn () -> KernelDesc]:
+    @staticmethod
+    fn inner(x: PtrArg[4], y: PtrArg[4], z: PtrArg[4]):
+        alias desc = desc_fn()
+        alias ContextT = Context[desc.stack_size, PtrArg[4], PtrArg[4], PtrArg[4]]
+        # var foo = ArgStorage[PtrArg[4], PtrArg[4], PtrArg[4]](x, y, z)
+        var context = ContextT(x, y, z)
+        # context_ptr[] = ContextT(x, y, z)
+        # var context_ptr = stack_alloc[Context[desc.stack_size, *desc.graph._core.vals]]()
+        # var context = Context[32, PtrArg[4], PtrArg[4], PtrArg[4]](x, y, z)
 
-    @parameter
-    for i in range(len(desc.order)):
-        alias callmem = desc.graph._core[desc.order[i]]
-        alias funcvar = callmem.func
-        alias FT = FuncVariant.Ts[funcvar.type_idx()]
-        alias func = funcvar[FT]
+        @parameter
+        for i in range(len(desc.order)):
+            alias callmem = desc.graph._core[desc.order[i]]
+            alias funcvar = callmem.func
+            alias FT = FuncVariant.Ts[funcvar.type_idx()]
+            alias func = funcvar[FT]
 
-        FT.evaluate[args = callmem.args, outs = callmem.outs, data = func.data()](
-            context
-        )
+            FT.evaluate[args = callmem.args, outs = callmem.outs, data = func.data()](
+                context
+            )
 
 
 @register_passable
 struct ArgStorage[*Ts: Argument](Sized):
     var storage: __mlir_type[`!kgen.pack<:!kgen.variadic<`, Argument, `> `, Ts, `>`]
+
+    fn __init__(out self, owned *storage: *Ts):
+        self = Self(storage=storage^)
 
     fn __init__(out self, owned storage: VariadicPack[_, _, Argument, *Ts]):
         __mlir_op.`lit.ownership.mark_initialized`(__get_mvalue_as_litref(self.storage))
@@ -68,17 +79,13 @@ struct ArgStorage[*Ts: Argument](Sized):
 
 
 @register_passable
-struct Context[origin: Origin, //, stack_size: Int, *Ts: Argument]:
+struct Context[stack_size: Int, *Ts: Argument]:
     var args: ArgStorage[*Ts]
     var stack: StaticTuple[Float32, stack_size]
 
-    fn __init__(out self, owned args: VariadicPack[True, origin, Argument, *Ts]):
+    fn __init__(out self, owned *args: *Ts):
         self.args = ArgStorage(args^)
         self.stack = StaticTuple[Float32, stack_size]()
-
-        @parameter
-        for i in range(len(VariadicList(Ts))):
-            print(self.args[i])
 
     # @always_inline
     fn arg[idx: Int](self) -> ref [self.args] Ts[idx]:
