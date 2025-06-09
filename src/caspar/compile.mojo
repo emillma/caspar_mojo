@@ -28,16 +28,12 @@ struct KernelDesc(Movable):
         self.stack_size = len(self.graph._core.vals)
 
 
-struct Kernel[desc_fn: fn () -> KernelDesc]:
+struct Kernel[desc_fn: fn () -> KernelDesc, *ArgTs: Argument]:
     @staticmethod
-    fn inner(x: PtrArg[4], y: PtrArg[4], z: PtrArg[4]):
+    fn inner(owned *args: *ArgTs):
         alias desc = desc_fn()
-        alias ContextT = Context[desc.stack_size, PtrArg[4], PtrArg[4], PtrArg[4]]
-        # var foo = ArgStorage[PtrArg[4], PtrArg[4], PtrArg[4]](x, y, z)
-        var context = ContextT(x, y, z)
-        # context_ptr[] = ContextT(x, y, z)
-        # var context_ptr = stack_alloc[Context[desc.stack_size, *desc.graph._core.vals]]()
-        # var context = Context[32, PtrArg[4], PtrArg[4], PtrArg[4]](x, y, z)
+        alias ContextT = Context[desc.stack_size, *ArgTs]
+        var context = ContextT(args^)
 
         @parameter
         for i in range(len(desc.order)):
@@ -83,8 +79,8 @@ struct Context[stack_size: Int, *Ts: Argument]:
     var args: ArgStorage[*Ts]
     var stack: StaticTuple[Float32, stack_size]
 
-    fn __init__(out self, owned *args: *Ts):
-        self.args = ArgStorage(args^)
+    fn __init__(out self, owned storage: VariadicPack[_, _, Argument, *Ts]):
+        self.args = ArgStorage(storage^)
         self.stack = StaticTuple[Float32, stack_size]()
 
     # @always_inline
