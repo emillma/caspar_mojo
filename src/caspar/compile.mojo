@@ -16,16 +16,31 @@ from memory import stack_allocation
 
 struct KernelDesc(Movable):
     var graph: Graph
-    var arg_keys: List[StaticString]
     var order: List[CallIdx]
     var stack_size: Int
-    # var signature: List[AccessorVariant]
 
-    fn __init__(out self, owned graph: Graph, owned arg_keys: List[StaticString]):
-        self.graph = graph^
-        self.arg_keys = arg_keys^
-        self.order = [i for i in range(len(self.graph._core.calls))]
+    fn __init__[*Ts: Accessor](out self, owned *args: *Ts):
+        """Create a kernel call with the given arguments."""
+        #  TODO: Make sure accessors are from same graph.
+
+        alias n_args = len(VariadicList(Ts))
+        var self.graph = Graph()
+        var val_map = Dict[ValIdx, ValIdx]()
+
+        @parameter
+        for i in range(n_args):
+            var arg: Ts[i] = args[i]
+            if Ts[i].IS_READ:
+                arg.read_and_map[i](self.graph, val_map)
+
+        @parameter
+        for i in range(n_args):
+            var arg: Ts[i] = args[i]
+            if not Ts[i].IS_READ:
+                arg.map_and_write[i](self.graph, val_map)
+
         self.stack_size = len(self.graph._core.vals)
+        self.order = [i for i in range(len(self.graph._core.calls))]
 
 
 struct Kernel[desc_fn: fn () -> KernelDesc, *ArgTs: Argument]:

@@ -21,7 +21,7 @@ fn foo() -> KernelDesc:
     var x = Vector[4]("x", graph)
     var y = Vector[4]("y", graph)
     var z = x + y
-    return graph.make_kernel(
+    return KernelDesc(
         accessors.ReadUnique(x),
         accessors.ReadUnique(y),
         accessors.WriteUnique(z),

@@ -123,27 +123,27 @@ struct Graph(Movable):
             val_map[other_val.call()[].outs[i]] = callmem.outs[i]
         return callmem.outs[other_val[].out_idx]
 
-    fn make_kernel[*Ts: Accessor](self, owned *args: *Ts) -> KernelDesc:
-        """Create a kernel call with the given arguments."""
-        alias n_args = len(VariadicList(Ts))
-        var new_graph = Graph()
-        var val_map = Dict[ValIdx, ValIdx]()
+    # fn make_kernel[*Ts: Accessor](self, owned *args: *Ts) -> KernelDesc:
+    #     """Create a kernel call with the given arguments."""
+    #     alias n_args = len(VariadicList(Ts))
+    #     var new_graph = Graph()
+    #     var val_map = Dict[ValIdx, ValIdx]()
 
-        @parameter
-        for i in range(n_args):
-            var arg: Ts[i] = args[i]
-            if Ts[i].IS_READ:
-                arg.read_and_map[i](new_graph, val_map)
+    #     @parameter
+    #     for i in range(n_args):
+    #         var arg: Ts[i] = args[i]
+    #         if Ts[i].IS_READ:
+    #             arg.read_and_map[i](new_graph, val_map)
 
-        @parameter
-        for i in range(n_args):
-            var arg: Ts[i] = args[i]
-            if not Ts[i].IS_READ:
-                arg.map_and_write[i](new_graph, val_map)
+    #     @parameter
+    #     for i in range(n_args):
+    #         var arg: Ts[i] = args[i]
+    #         if not Ts[i].IS_READ:
+    #             arg.map_and_write[i](new_graph, val_map)
 
-        var argkeys = List[StaticString](capacity=n_args)
+    #     var argkeys = List[StaticString](capacity=n_args)
 
-        @parameter
-        for i in range(n_args):
-            argkeys.append(Ts[i].ArgT.KEY)
-        return KernelDesc(new_graph^, argkeys^)
+    #     @parameter
+    #     for i in range(n_args):
+    #         argkeys.append(Ts[i].ArgT.KEY)
+    #     return KernelDesc(new_graph^, argkeys^)
