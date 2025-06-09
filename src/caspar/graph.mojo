@@ -8,8 +8,7 @@ from .graph_core import GraphCore, CallMem, ValMem
 from sys.intrinsics import _type_is_eq
 from sys import sizeof, alignof
 from utils.lock import BlockingSpinLock
-from os.atomic import Atomic
-from caspar.compile import Kernel
+from caspar.compile import KernelDesc
 from caspar.accessors import Accessor
 
 
@@ -19,11 +18,7 @@ struct LockToken:
         pass
 
 
-trait GraphT(Movable):
-    ...
-
-
-struct Graph(GraphT):
+struct Graph(Movable):
     """Exposed interface for the graph."""
 
     alias LockToken = Int
@@ -74,18 +69,17 @@ struct Graph(GraphT):
         )
         self._release(token^)
 
-    fn __is__[T: AnyType](self, other: T) -> Bool:
-        @parameter
-        if not _type_is_eq[Self, T]():
-            return False
-        return UnsafePointer(to=self) == UnsafePointer(to=rebind[Self](other))
+    fn __getitem__[
+        origin: ImmutableOrigin
+    ](ref [origin]self: Self, idx: CallIdx) -> Call[origin]:
+        debug_assert(idx < len(self._core.calls), "Call index out of bounds")
+        return Call(Pointer(to=self), idx)
 
-    fn take_core(owned self, out core: GraphCore):
-        """Take ownership of the core, leaving the graph empty."""
-        var token = self._aquire()
-        core = self._core^
-        __disable_del token
-        __disable_del self
+    fn __getitem__[
+        origin: ImmutableOrigin
+    ](ref [origin]self: Self, idx: ValIdx) -> Val[origin]:
+        debug_assert(idx < len(self._core.vals), "Val index out of bounds")
+        return Val(Pointer(to=self), idx)
 
     fn same_as(self, other: Graph) -> Bool:
         """Check if two graphs are the same."""
@@ -128,22 +122,27 @@ struct Graph(GraphT):
             val_map[other_val.call()[].outs[i]] = callmem.outs[i]
         return callmem.outs[other_val[].out_idx]
 
-    fn make_kernel[*Ts: Accessor](self, owned *args: *Ts):
+    fn make_kernel[*Ts: Accessor](self, owned *args: *Ts) -> KernelDesc:
         """Create a kernel call with the given arguments."""
+        alias n_args = len(VariadicList(Ts))
         var new_graph = Graph()
         var val_map = Dict[ValIdx, ValIdx]()
 
         @parameter
-        for i in range(len(VariadicList(Ts))):
+        for i in range(n_args):
             var arg: Ts[i] = args[i]
-            if Ts[i].is_read:
-                arg.read_and_map(new_graph, val_map)
+            if Ts[i].IS_READ:
+                arg.read_and_map[i](new_graph, val_map)
 
         @parameter
-        for i in range(len(VariadicList(Ts))):
+        for i in range(n_args):
             var arg: Ts[i] = args[i]
-            if not Ts[i].is_read:
-                arg.map_and_write(new_graph, val_map)
+            if not Ts[i].IS_READ:
+                arg.map_and_write[i](new_graph, val_map)
 
-        for item in val_map.items():
-            print(item.key, item.value)
+        var argkeys = List[StaticString](capacity=n_args)
+
+        @parameter
+        for i in range(n_args):
+            argkeys.append(Ts[i].ArgT.KEY)
+        return KernelDesc(new_graph^, argkeys^)

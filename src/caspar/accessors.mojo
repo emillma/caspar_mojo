@@ -9,42 +9,45 @@ from collections import BitSet
 from memory import UnsafePointer
 from sys import sizeof, alignof
 from sys.intrinsics import _type_is_eq
-from caspar import args
+from caspar import kernel_args
+
+
+fn arg_name[i: Int]() -> String:
+    return "arg" + String(i)
 
 
 trait Accessor(Copyable & Movable):
-    alias is_read: Bool
-    alias arg_type_key: StaticString
+    alias IS_READ: Bool
+    alias ArgT: kernel_args.Argument
 
-    fn read_and_map(self, graph: Graph, mut val_map: Dict[ValIdx, ValIdx]):
+    fn read_and_map[arg: Int](self, graph: Graph, mut val_map: Dict[ValIdx, ValIdx]):
         ...
 
-    fn map_and_write(self, graph: Graph, mut val_map: Dict[ValIdx, ValIdx]):
+    fn map_and_write[arg: Int](self, graph: Graph, mut val_map: Dict[ValIdx, ValIdx]):
         ...
 
 
-struct Unique[read: Bool, StorageT: Storable](Accessor):
-    alias is_read = read
-    alias arg_type_key = args.PtrArg.arg_type_key
+struct Unique[StorageT: Storable, //, read: Bool](Accessor):
+    alias IS_READ = read
+    alias ArgT = kernel_args.PtrArg[StorageT.size_]
     var target: StorageT
-    var name: StaticString
 
-    fn __init__(out self, target: StorageT, name: StaticString = ""):
+    fn __init__(out self, target: StorageT):
         self.target = target
-        self.name = name
 
-    fn read_and_map(self, graph: Graph, mut val_map: Dict[ValIdx, ValIdx]):
+    fn read_and_map[arg: Int](self, graph: Graph, mut val_map: Dict[ValIdx, ValIdx]):
         for i in range(StorageT.size_):
-            var call = graph.add_call(funcs.ReadValue[1](self.name, i))
+            var call = graph.add_call(funcs.ReadValue[1](arg, i))
             val_map[self.target[i].idx] = call[].outs[0]
 
-    fn map_and_write(self, graph: Graph, mut val_map: Dict[ValIdx, ValIdx]):
+    fn map_and_write[arg: Int](self, graph: Graph, mut val_map: Dict[ValIdx, ValIdx]):
         for i in range(StorageT.size_):
-            graph.copy_val(self.target[i], val_map)
+            new_val = graph.copy_val(self.target[i], val_map)
+            _ = graph.add_call(funcs.WriteValue[1](arg, i), new_val)
 
 
-alias ReadUnique = Unique[True, _]
-alias WriteUnique = Unique[False, _]
+alias ReadUnique = Unique[True]
+alias WriteUnique = Unique[False]
 # for i in range(self.data.size):
 #     graph.copy_val(
 #         self.data.indices[i], funcs.WriteValue[1](self.name, i).outs[0]

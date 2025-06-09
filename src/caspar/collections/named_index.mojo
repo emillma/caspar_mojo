@@ -130,11 +130,7 @@ struct IndexList[ElemT: NamedIndexT, stack_size: Int = 4](
         )
         self.stack_ptr().bitcast[UnsafePointer[ElemT]]().init_pointee_move(ptr)
 
-    fn __getitem__[T: Indexer](mut self, idx: T) -> ref [self] ElemT:
-        debug_assert(Int(idx) < Int(self.count), "Index out of bounds for IndexList")
-        return self.ptr().offset(idx)[]
-
-    fn __getitem__[T: Indexer](self, idx: T) -> ElemT:
+    fn __getitem__[T: Indexer](self, idx: T) -> ref [self] ElemT:
         debug_assert(Int(idx) < Int(self.count), "Index out of bounds for IndexList")
         return self.ptr().offset(idx)[]
 

@@ -13,9 +13,11 @@ from caspar.collections import (
 )
 from caspar.storage import SymbolStorage
 from caspar.graph import Graph
+from compile.reflection import get_type_name
 
 # from caspar.utils import hash
 alias Stack = StaticTuple[Float32, _]
+from caspar import kernel_args
 
 
 struct FuncInfo(EqualityComparable):
@@ -60,11 +62,10 @@ trait Callable(Copyable, Movable, KeyElement):
     @always_inline
     @staticmethod
     fn evaluate[
-        CT: Context, //,
         args: IndexList[ValIdx],
         outs: IndexList[ValIdx],
         data: Self.DataT,
-    ](mut context: CT):
+    ](mut context: Context):
         ...
 
 
@@ -94,11 +95,10 @@ struct Symbol(Callable):
     @always_inline
     @staticmethod
     fn evaluate[
-        CT: Context, //,
         args: IndexList[ValIdx],
         outs: IndexList[ValIdx],
         data: Self.DataT,
-    ](mut context: CT):
+    ](mut context: Context):
         constrained[False]()
 
 
@@ -106,50 +106,53 @@ struct Symbol(Callable):
 @register_passable("trivial")
 struct ReadValue[size: Int = 1](Callable):
     alias info = FuncInfo("ReadValue" + String(size), 0, size)
-    alias DataT = Tuple[String, Int]
+    alias DataT = Tuple[Int, Int]
 
-    var argname: StaticString
+    var argidx: Int
     var offset: Int
 
     fn write_call[W: Writer](self, call: Call, mut writer: W):
-        writer.write(self.argname, self.offset)
+        writer.write("Read[arg", self.argidx, ",", self.offset, "]()")
 
     fn __hash__(self) -> UInt:
-        return multihash(Self.info.hash, self.argname, self.offset)
+        return multihash(Self.info.hash, self.argidx, self.offset)
 
     fn __eq__(self, other: Self) -> Bool:
-        return self.argname == other.argname and self.offset == other.offset
+        return self.argidx == other.argidx and self.offset == other.offset
 
     fn __ne__(self, other: Self) -> Bool:
         return not self.__eq__(other)
 
     fn data(self) -> Self.DataT:
-        return (self.argname, self.offset)
+        return (self.argidx, self.offset)
 
     @always_inline
     @staticmethod
     fn evaluate[
-        CT: Context, //,
         args: IndexList[ValIdx],
         outs: IndexList[ValIdx],
         data: Self.DataT,
-    ](mut context: CT):
+    ](mut context: Context):
+        ref arg = rebind[kernel_args.PtrArg[size]](context.arg[data[0]]())
+        # print(get_type_name[__type_of(arg)]())
+
         @parameter
         for i in range(Self.size):
-            context.set[outs[i]](context.arg[data[0]]().offset(data[1])[])
+            # print(arg, arg.ptr, arg.ptr.offset(data[1] + i)[])
+            context.set[outs[i]](arg.ptr.offset(data[1] + i)[])
 
 
 @value
 @register_passable("trivial")
 struct WriteValue[size: Int = 1](Callable):
     alias info = FuncInfo("WriteValue" + String(size), size, 0)
-    alias DataT = Tuple[String, Int]
+    alias DataT = Tuple[Int, Int]
 
-    var argname: StaticString
+    var argidx: Int
     var offset: Int
 
     fn write_call[W: Writer](self, call: Call, mut writer: W):
-        writer.write("Write(", self.argname, self.offset, ", ")
+        writer.write("Write[arg", self.argidx, ",", self.offset, "](")
         for i in range(size):
             writer.write(call.arg(i))
             if i < size - 1:
@@ -157,28 +160,29 @@ struct WriteValue[size: Int = 1](Callable):
         writer.write(")")
 
     fn __hash__(self) -> UInt:
-        return multihash(Self.info.hash, self.argname, self.offset)
+        return multihash(Self.info.hash, self.argidx, self.offset)
 
     fn __eq__(self, other: Self) -> Bool:
-        return self.argname == other.argname and self.offset == other.offset
+        return self.argidx == other.argidx and self.offset == other.offset
 
     fn __ne__(self, other: Self) -> Bool:
         return not self.__eq__(other)
 
     fn data(self) -> Self.DataT:
-        return (self.argname, self.offset)
+        return (self.argidx, self.offset)
 
     @always_inline
     @staticmethod
     fn evaluate[
-        CT: Context, //,
         args: IndexList[ValIdx],
         outs: IndexList[ValIdx],
         data: Self.DataT,
-    ](mut context: CT):
+    ](mut context: Context):
+        ref arg = rebind[kernel_args.PtrArg[size]](context.arg[data[0]]())
+
         @parameter
         for i in range(Self.size):
-            context.arg[data[0]]().offset(data[1])[] = context.get[args[i]]()
+            arg.ptr.offset(data[1] + i)[] = context.get[args[i]]()
 
 
 @value
@@ -205,11 +209,10 @@ struct Add(Callable):
     @always_inline
     @staticmethod
     fn evaluate[
-        CT: Context, //,
         args: IndexList[ValIdx],
         outs: IndexList[ValIdx],
         data: Self.DataT,
-    ](mut context: CT):
+    ](mut context: Context):
         context.set[outs[0]](context.get[args[0]]() + context.get[args[1]]())
 
 
@@ -237,11 +240,10 @@ struct Mul(Callable):
     @always_inline
     @staticmethod
     fn evaluate[
-        CT: Context, //,
         args: IndexList[ValIdx],
         outs: IndexList[ValIdx],
         data: Self.DataT,
-    ](mut context: CT):
+    ](mut context: Context):
         ...
 
 
@@ -270,11 +272,10 @@ struct StoreFloat(Callable):
     @always_inline
     @staticmethod
     fn evaluate[
-        CT: Context, //,
         args: IndexList[ValIdx],
         outs: IndexList[ValIdx],
         data: Self.DataT,
-    ](mut context: CT):
+    ](mut context: Context):
         ...
 
 
@@ -302,11 +303,10 @@ struct StoreOne(Callable):
     @always_inline
     @staticmethod
     fn evaluate[
-        CT: Context, //,
         args: IndexList[ValIdx],
         outs: IndexList[ValIdx],
         data: Self.DataT,
-    ](mut context: CT):
+    ](mut context: Context):
         ...
 
 
@@ -334,11 +334,10 @@ struct StoreZero(Callable):
     @always_inline
     @staticmethod
     fn evaluate[
-        CT: Context, //,
         args: IndexList[ValIdx],
         outs: IndexList[ValIdx],
         data: Self.DataT,
-    ](mut context: CT):
+    ](mut context: Context):
         ...
 
 
@@ -369,9 +368,8 @@ struct AnyFunc(Callable):
     @always_inline
     @staticmethod
     fn evaluate[
-        CT: Context, //,
         args: IndexList[ValIdx],
         outs: IndexList[ValIdx],
         data: Self.DataT,
-    ](mut context: CT):
+    ](mut context: Context):
         constrained[False, "AnyFunc should not be used as a function type"]()
