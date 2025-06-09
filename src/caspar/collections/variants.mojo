@@ -4,34 +4,15 @@ from sys import alignof, sizeof
 from sys.intrinsics import _type_is_eq
 
 from memory import UnsafePointer
-from caspar.sysconfig import SymConfig
 from caspar.accessors import Accessor
 from builtin.range import _ZeroStartingRange
 
 
-trait SomeFuncVariant(Copyable, Movable, KeyElement):
-    alias range: _ZeroStartingRange
-
-    @implicit
-    fn __init__[T: Callable](out self, owned value: T):
-        ...
-
-    @always_inline("nodebug")
-    fn type_idx(ref self) -> ref [self] UInt8:
-        ...
-
-    @staticmethod
-    fn type_idx_of[T: Callable]() -> Int:
-        ...
-
-    fn do[func: fn[T: Callable] (val: T) capturing](self):
-        ...
-
-
-struct FuncVariant[*Ts: Callable](SomeFuncVariant):
+struct FuncVariant[*Ts: Callable]:
     alias Trait = Callable
     alias _sentinel: Int = -1
     alias range = range(len(VariadicList(Ts)))
+
     var hash: UInt
     var _impl: __mlir_type[`!kgen.variant<[rebind(:`, __type_of(Ts), ` `, Ts, `)]>`]
 
@@ -147,41 +128,26 @@ struct FuncVariant[*Ts: Callable](SomeFuncVariant):
         return self.hash
 
 
-trait SomeAccessorVariant(Copyable, Movable):
-    @implicit
-    fn __init__[T: Accessor](out self, owned value: T):
-        ...
-
-    @always_inline("nodebug")
-    fn type_idx(ref self) -> ref [self] UInt8:
-        ...
-
-    @staticmethod
-    fn type_idx_of[T: Accessor]() -> Int:
-        ...
-
-    fn __getitem__[T: Accessor](ref self) -> ref [self] T:
-        ...
-
-
-struct AccessorVariant[*Ts: Accessor](SomeAccessorVariant):
+struct AccessorVariant[*Ts: Accessor]:
     alias Trait = Accessor
     alias range = range(len(VariadicList(Ts)))
     alias _sentinel: Int = -1
+    var is_read: Bool
     var _impl: __mlir_type[`!kgen.variant<[rebind(:`, __type_of(Ts), ` `, Ts, `)]>`]
 
-    fn __init__(out self, *, unsafe_uninitialized: Bool):
+    fn __init__(out self, is_read: Bool, *, unsafe_uninitialized: Bool):
         __mlir_op.`lit.ownership.mark_initialized`(__get_mvalue_as_litref(self._impl))
+        self.is_read = is_read
 
     @implicit
-    fn __init__[T: Self.Trait](out self, owned value: T):
+    fn __init__[T: Accessor](out self, owned value: T):
         alias idx = Self.type_idx_of[T]()
-        self = Self(unsafe_uninitialized=True)
+        self = Self(T.is_read, unsafe_uninitialized=True)
         self.type_idx() = idx
         self._get_ptr[T]().init_pointee_move(value^)
 
     fn copy(self, out copy: Self):
-        copy = Self(unsafe_uninitialized=True)
+        copy = Self(self.is_read, unsafe_uninitialized=True)
         copy.type_idx() = self.type_idx()
 
         @parameter
@@ -195,7 +161,7 @@ struct AccessorVariant[*Ts: Accessor](SomeAccessorVariant):
         self = other.copy()
 
     fn __moveinit__(out self, owned other: Self):
-        self = Self(unsafe_uninitialized=True)
+        self = Self(other.is_read, unsafe_uninitialized=True)
         self.type_idx() = other.type_idx()
 
         @parameter
@@ -204,6 +170,13 @@ struct AccessorVariant[*Ts: Accessor](SomeAccessorVariant):
             if self.type_idx() == i:
                 # Calls the correct __moveinit__
                 other._get_ptr[T]().move_pointee_into(self._get_ptr[T]())
+                return
+
+    fn do[func: fn[T: Accessor] (val: T) capturing](self):
+        @parameter
+        for i in Self.range:
+            if i == Int(self.type_idx()):
+                func(self.unsafe_get[Ts[i]]())
                 return
 
     fn __del__(owned self):

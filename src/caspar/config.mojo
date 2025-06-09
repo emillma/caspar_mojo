@@ -27,7 +27,7 @@ alias FuncVariant = variants.FuncVariant[
     funcs.StoreZero,
 ]
 
-alias AccessorVariant = variants.AccessorVariant[
+alias AccessVariant = variants.AccessorVariant[
     accessors.WriteUnique,
     accessors.ReadUnique,
 ]

@@ -9,6 +9,7 @@ from sys.intrinsics import _type_is_eq
 from sys import sizeof, alignof
 from utils.lock import BlockingSpinLock
 from os.atomic import Atomic
+from caspar.config import AccessVariant
 
 
 @explicit_destroy
@@ -93,6 +94,12 @@ struct Graph(GraphT):
             return UnsafePointer(to=self) == UnsafePointer(to=rebind[Self](other))
         return False
 
-    fn make_kernel[*As: accessors.Accessor](self, owned *args: *As):
+    fn make_kernel(self, owned *args: AccessVariant):
         """Create a kernel call with the given arguments."""
-        ...
+        var new_graph = Graph()
+        var val_map = Dict[ValIdx, ValIdx]()
+        var call_map = Dict[CallIdx, CallIdx]()
+
+        for arg in args:
+            if arg.is_read:
+                print("Read argument at index")

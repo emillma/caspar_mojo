@@ -4,29 +4,20 @@ from caspar.funcs import AnyFunc
 from caspar.graph import Graph
 from caspar.graph_core import GraphCore
 from caspar.storage import SymbolStorage, Storable
-from caspar.sysconfig import SymConfig
 from caspar.val import Val, Call
 from collections import BitSet
 from memory import UnsafePointer
 from sys import sizeof, alignof
 from sys.intrinsics import _type_is_eq
+from caspar.config import AccessVariant
 
 
 trait Accessor(Copyable & Movable):
     alias is_read: Bool
 
-    fn get_data(self) -> AccessorData:
+    @staticmethod
+    fn read_into(self, graph: Graph, out ret: List[ValIdx]):
         ...
-
-    # @staticmethod
-    # fn read[
-    #     size: Int, sym: SymConfig, origin: ImmutableOrigin
-    # ](
-    #     name: StaticString,
-    #     ref [origin]graph: Graph[sym],
-    #     out ret: List[Val[sym, origin]],
-    # ):
-    #     ...
 
 
 @value
@@ -41,11 +32,11 @@ struct ReadUnique(Accessor):
     var data: AccessorData
 
     fn __init__[S: Storable](out self, data: S, name: StaticString = ""):
-        self.data = AccessorData(name, S.size_, S.sym_.access_idx[Self]())
-        # Initialize the read accessor
+        self.data = AccessorData(name, S.size_, AccessVariant.type_idx_of[Self]())
 
-    fn get_data(self) -> AccessorData:
-        return self.data
+    @staticmethod
+    fn read_into(self, graph: Graph, out ret: List[ValIdx]):
+        ret = []
 
     # fn __init__(out self: ):
     # Initialize the read accessor with the name and size
@@ -69,11 +60,12 @@ struct WriteUnique(Accessor):
     var data: AccessorData
 
     fn __init__[S: Storable](out self, data: S, name: StaticString = ""):
-        self.data = AccessorData(name, S.size_, S.sym_.access_idx[Self]())
-        # Initialize the read accessor
+        self.data = AccessorData(name, S.size_, AccessVariant.type_idx_of[Self]())
 
-    fn get_data(self) -> AccessorData:
-        return self.data
+    @staticmethod
+    fn read_into(self, graph: Graph, out ret: List[ValIdx]):
+        constrained[Self.is_read, "Not a read accessor"]()
+        ret = []
 
     # @staticmethod
     # fn read[

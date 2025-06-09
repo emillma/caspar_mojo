@@ -42,27 +42,25 @@ struct SymbolStorage[size: Int, origin: ImmutableOrigin](Movable, Copyable, Size
         return len(self.indices)
 
 
-# trait Storable(Movable, Copyable, Sized):
-#     alias size_: Int
-#     alias GT: GraphT
-#     alias sym_: SymConfig
-#     alias origin_: ImmutableOrigin
+trait Storable(Movable, Copyable, Sized, Writable):
+    alias size_: Int
+    alias origin_: ImmutableOrigin
 
-#     fn graph(self) -> ref [Self.origin_] Graph[Self.sym_]:
-#         ...
+    fn graph(self) -> ref [Self.origin_] Graph:
+        ...
 
-#     fn __getitem__(self, idx: Int) -> Val[Self.sym_, Self.origin_]:
-#         ...
+    fn __getitem__(self, idx: Int) -> Val[Self.origin_]:
+        ...
 
-#     fn __setitem__(mut self, idx: Int, owned value: Val[Self.sym_, Self.origin_]):
-#         ...
+    fn __setitem__(mut self, idx: Int, owned value: Val[Self.origin_]):
+        ...
 
 
 @fieldwise_init
 struct Vector[
     size: Int,
     origin: ImmutableOrigin,
-](Writable):
+](Storable):
     alias size_ = size
     alias origin_ = origin
     var data: SymbolStorage[size, origin]
@@ -94,7 +92,7 @@ struct Vector[
     fn graph(self) -> ref [origin] Graph:
         return self.data.graph[]
 
-    fn to_storage(self) -> SymbolStorage[size, sym, origin]:
+    fn to_storage(self) -> SymbolStorage[size, origin]:
         return self.data
 
     fn write_to[W: Writer](self, mut writer: W):
