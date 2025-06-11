@@ -2,10 +2,39 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "build",
-            "command": "magic",
+            "label": "run file",
+            "command": "pixi",
             "args": [
                 "run",
+                "--manifest-path=pixi.toml",
+                "mojo",
+                "debug",
+                "--vscode",
+                // "${workspaceFolder}/src/main.mojo"
+                "${workspaceFolder}/build/main"
+            ],
+            "group": {
+                "kind": "test",
+                "isDefault": true
+            },
+            "dependsOn": [
+                "build"
+            ],
+            "presentation": {
+                "focus": false,
+                "reveal": "never",
+                "echo": false,
+                "panel": "shared",
+                "revealProblems": "never",
+                "clear": true
+            },
+        },
+        {
+            "label": "build",
+            "command": "pixi",
+            "args": [
+                "run",
+                "--manifest-path=pixi.toml",
                 "mojo",
                 "build",
                 "--no-optimization",
@@ -17,30 +46,30 @@
                 "${workspaceFolder}/build/main"
             ],
             "presentation": {
-                // "reveal": "silent",
-                "echo": false,
-                // "focus": true,
-                "panel": "shared",
+                "reveal": "never",
+                "echo": true,
+                "focus": true,
+                "panel": "dedicated",
                 "revealProblems": "never",
-                "clear": true
+                // "clear": true
             },
-            "problemMatcher": {
-                "owner": "mojo",
-                "fileLocation": [
-                    "absolute",
-                    // "${workspaceFolder}"
-                ],
-                "pattern": [
-                    {
-                        "regexp": "^(.*):(\\d+):(\\d+):\\s+(error|warning|info|note):\\s+(.*)$",
-                        "file": 1,
-                        "line": 2,
-                        "column": 3,
-                        "severity": 4,
-                        "message": 5
-                    }
-                ]
-            }
+            // "problemMatcher": {
+            //     "owner": "mojo",
+            //     "fileLocation": [
+            //         "absolute",
+            //         // "${workspaceFolder}"
+            //     ],
+            //     "pattern": [
+            //         {
+            //             "regexp": "^(.*):(\\d+):(\\d+):\\s+(error|warning|info|note):\\s+(.*)$",
+            //             "file": 1,
+            //             "line": 2,
+            //             "column": 3,
+            //             "severity": 4,
+            //             "message": 5
+            //         }
+            //     ]
+            // }
         }
     ]
 }

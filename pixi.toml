@@ -1,0 +1,12 @@
+[workspace]
+authors = ["Emil Martens <emil.martens@gmail.com>"]
+channels = ["https://conda.modular.com/max-nightly", "conda-forge"]
+name = "caspar_mojo"
+platforms = ["linux-64"]
+version = "0.1.0"
+
+[tasks]
+
+[dependencies]
+python = ">=3.13.3,<3.14"
+modular = ">=25.4.0.dev2025061005,<26"

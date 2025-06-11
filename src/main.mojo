@@ -13,6 +13,10 @@ from gpu.host import DeviceContext
 from gpu.id import block_idx, thread_idx
 from pathlib import Path
 from compile.reflection import get_type_name
+from benchmark import keep
+from python import Python
+
+
 
 
 fn foo() -> KernelDesc:
@@ -28,12 +32,11 @@ fn foo() -> KernelDesc:
     )
 
 
-trait MyThing:
-    ...
-
-
 def main():
-    print("start")
+    # alias hello = bar()
+    var array = Python.list(1, 2, 3)
+    print(array)
+
     var x = InlineArray[Float32, 4](1, 3, 2, 3)
     var y = InlineArray[Float32, 4](2, 3, -8, 9)
     var z = InlineArray[Float32, 4](fill=-1)
@@ -51,4 +54,4 @@ def main():
         mykernel, dump_asm = Path("file.ptx"), _ptxas_info_verbose=True
     ]()
 
-    print("end")
+#     print("end")

@@ -30,14 +30,15 @@
         // },
         {
             "type": "mojo-lldb",
-            "request": "launch",
+            "request": "attach",
             "name": "Mojo: Debug binary",
             "description": "Launch and debug a precompiled binary given its path.",
             "program": "${workspaceFolder}/build/main",
-            "args": [],
-            "env": [],
+            // "launchCommands": [
+            //     "ls"
+            // ],
             "preLaunchTask": "build",
-            "cwd": "${workspaceFolder}",
+            // "cwd": "${workspaceFolder}",
             // "runInTerminal": true
         },
         {
@@ -53,8 +54,6 @@
             "name": "Mojo: Debug current Mojo file with CUDA-GDB",
             "description": "Launch and debug the Mojo file that is active on the editor when the debug session starts, using CUDA-GDB.",
             "mojoFile": "${file}",
-            "args": [],
-            "env": [],
             "cwd": "${workspaceFolder}",
             "breakOnLaunch": true,
             // "legacyDebugger": true,
